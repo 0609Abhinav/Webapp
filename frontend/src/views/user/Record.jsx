@@ -1008,6 +1008,7 @@ const RecordsTable = () => {
   const [sortField, setSortField] = useState('id');
   const [sortOrder, setSortOrder] = useState('ASC');
   const [errors, setErrors] = useState({});
+  const pageSizeOptions = [5, 8, 10];
 
   useEffect(() => {
     fetchRecords();

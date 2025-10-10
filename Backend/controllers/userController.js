@@ -52,7 +52,7 @@ exports.createUser = async (req, res) => {
     const existingUser = await User.findOne({ where: { email: normalizedEmail } });
     if (existingUser) return res.status(400).json({ status: 'error', message: 'Email already in use' });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // const hashedPassword = await bcrypt.hash(password, 10);
     const photo = req.file ? req.file.filename : null;
 
     const user = await User.create({
@@ -66,7 +66,7 @@ exports.createUser = async (req, res) => {
       stateId,
       state_name,
       photo,
-      password: hashedPassword,
+      password,
     });
 
     const { password: _, ...userData } = user.toJSON();
@@ -78,22 +78,84 @@ exports.createUser = async (req, res) => {
 };
 
 // ------------------ User Login ------------------
+// exports.loginUser = async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+//     if (!email || !password) return res.status(400).json({ status: 'error', message: 'Email and password are required' });
+
+//     const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
+//     if (!user || !(await bcrypt.compare(password, user.password))) {
+//       return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
+//     }
+
+//     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+//     const { password: _, ...userData } = user.toJSON();
+//     res.status(200).json({ status: 'success', message: 'Login successful', data: userData, token });
+//   } catch (err) {
+//     console.error('Login error:', err);
+//     res.status(500).json({ status: 'error', message: 'Failed to login', error: err.message });
+//   }
+// };
+
 exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ status: 'error', message: 'Email and password are required' });
 
-    const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
+    // 🧩 Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email and password are required',
+      });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-    const { password: _, ...userData } = user.toJSON();
-    res.status(200).json({ status: 'success', message: 'Login successful', data: userData, token });
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 🧩 Find user
+    const user = await User.findOne({ where: { email: normalizedEmail } });
+
+    if (!user) {
+      console.warn(`⚠️ Login failed: No user found for ${normalizedEmail}`);
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid email or password',
+      });
+    }
+
+    // 🧩 Compare passwords safely
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      console.warn(`⚠️ Login failed: Incorrect password for ${normalizedEmail}`);
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid email or password',
+      });
+    }
+
+    // 🧩 Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+    );
+
+    // 🧩 Prepare response
+    const { password: _, resetPasswordToken, resetPasswordExpires, ...userData } = user.toJSON();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Login successful',
+      data: userData,
+      token,
+    });
+
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ status: 'error', message: 'Failed to login', error: err.message });
+    console.error('💥 Login error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to login',
+      error: err.message,
+    });
   }
 };
 
@@ -273,7 +335,7 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const { token } = req.params; // <-- Take token from URL params
+    const { token } = req.params; // token from URL
     const { password } = req.body;
 
     if (!token || !password) {
@@ -283,10 +345,10 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // Hash the token to match stored token in DB
+    // ✅ Hash token before lookup
     const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Find user with valid token and expiration
+    // ✅ Find user with matching token and valid expiration
     const user = await User.findOne({
       where: {
         resetPasswordToken,
@@ -301,9 +363,9 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // Update user password and clear token fields
+    // ✅ Update password directly — model hook will hash it automatically
     await user.update({
-      password: hashedPassword,
+      password, // plain text — Sequelize hook will hash it
       resetPasswordToken: null,
       resetPasswordExpires: null,
     });
@@ -321,6 +383,8 @@ exports.resetPassword = async (req, res) => {
     });
   }
 };
+
+
 // ------------------ Delete User ------------------
 exports.deleteUser = async (req, res) => {
   try {
