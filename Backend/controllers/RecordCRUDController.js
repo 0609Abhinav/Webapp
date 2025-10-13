@@ -1,3 +1,4 @@
+
 // const catchAsync = require("../utils/catchAsync");
 // const httpStatus = require("http-status-codes");
 // const ApiError = require("../utils/ApiError");
@@ -7,7 +8,6 @@
 // // CREATE RECORD
 // exports.createRecord = catchAsync(async (req, res) => {
 //   const { full_Name, email, phone, gender, dob, state_name, city, address, pincode } = req.body;
-//   const photo = req.file ? `/uploads/${req.file.filename}` : null;
 
 //   if (!full_Name || !email) {
 //     throw new ApiError(httpStatus.BAD_REQUEST, "Full name and email are required");
@@ -28,7 +28,6 @@
 //     city,
 //     address,
 //     pincode,
-//     photo,
 //     is_created: 1,
 //     is_updated: 0,
 //     is_deleted: 0,
@@ -92,7 +91,6 @@
 // // UPDATE RECORD
 // exports.updateRecord = catchAsync(async (req, res) => {
 //   const { full_Name, email, phone, gender, dob, state_name, city, address, pincode } = req.body;
-//   const photo = req.file ? `/uploads/${req.file.filename}` : null;
 
 //   if (!full_Name || !email) {
 //     throw new ApiError(httpStatus.BAD_REQUEST, "Full name and email are required");
@@ -120,7 +118,6 @@
 //     city,
 //     address,
 //     pincode,
-//     photo,
 //     is_updated: 1,
 //   });
 
@@ -137,7 +134,6 @@
 //     throw new ApiError(httpStatus.NOT_FOUND, "Record not found");
 //   }
 
-//   // Soft delete
 //   await record.update({ is_deleted: 1 });
 
 //   res.status(httpStatus.OK).json({
@@ -145,11 +141,14 @@
 //     message: `Record ${req.params.id} deleted successfully`,
 //   });
 // });
+
+
 const catchAsync = require("../utils/catchAsync");
 const httpStatus = require("http-status-codes");
 const ApiError = require("../utils/ApiError");
 const { Op } = require("sequelize");
 const Record = require("../models/Record");
+const { broadcast } = require("../server"); // import broadcast from server.js
 
 // CREATE RECORD
 exports.createRecord = catchAsync(async (req, res) => {
@@ -178,6 +177,9 @@ exports.createRecord = catchAsync(async (req, res) => {
     is_updated: 0,
     is_deleted: 0,
   });
+
+  // Broadcast the new record to all WebSocket clients
+  broadcast({ type: "insert", data: record });
 
   res.status(httpStatus.CREATED).json({
     status: "success",
@@ -267,6 +269,9 @@ exports.updateRecord = catchAsync(async (req, res) => {
     is_updated: 1,
   });
 
+  // Broadcast the updated record to all WebSocket clients
+  broadcast({ type: "update", data: record });
+
   res.status(httpStatus.OK).json({
     status: "success",
     data: record,
@@ -281,6 +286,9 @@ exports.deleteRecord = catchAsync(async (req, res) => {
   }
 
   await record.update({ is_deleted: 1 });
+
+  // Broadcast the deleted record ID to all WebSocket clients
+  broadcast({ type: "delete", data: { id: req.params.id } });
 
   res.status(httpStatus.OK).json({
     status: "success",
