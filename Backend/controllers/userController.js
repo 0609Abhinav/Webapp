@@ -24,20 +24,44 @@ if (!SMTP_SERVER || !SMTP_PORT || !EMAIL_FROM || !EMAIL_PASSWORD) {
 }
 
 // Nodemailer setup
+// const transporter = nodemailer.createTransport({
+//   host: SMTP_SERVER,
+//   port: Number(SMTP_PORT),
+//   secure: false,
+//   auth: { user: EMAIL_FROM, pass: EMAIL_PASSWORD },
+//   family: 4,
+//   connectionTimeout: 10000,
+//   logger: true,
+//   debug: true,
+// });
+
 const transporter = nodemailer.createTransport({
-  host: SMTP_SERVER,
-  port: Number(SMTP_PORT),
+  host: process.env.SMTP_SERVER,
+  port: Number(process.env.SMTP_PORT),
   secure: false,
-  auth: { user: EMAIL_FROM, pass: EMAIL_PASSWORD },
-  family: 4,
-  connectionTimeout: 10000,
+  requireTLS: true,
+  auth: {
+    user: process.env.EMAIL_FROM,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   logger: true,
   debug: true,
+  tls: {
+    rejectUnauthorized: true,
+    ciphers: 'SSLv3',
+  },
 });
 
+// Test SMTP connection
 transporter.verify((err) => {
-  if (err) console.error('SMTP config error:', err);
-  else console.log('SMTP server ready');
+  if (err) {
+    console.error('SMTP verification failed:', err);
+  } else {
+    console.log('SMTP server connection verified successfully');
+  }
 });
 
 // ------------------ User Registration ------------------
@@ -101,7 +125,7 @@ exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 🧩 Validate input
+    // 🧩Validate input
     if (!email || !password) {
       return res.status(400).json({
         status: 'error',
@@ -111,7 +135,7 @@ exports.loginUser = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 🧩 Find user
+    //  Find user
     const user = await User.findOne({ where: { email: normalizedEmail } });
 
     if (!user) {
@@ -122,7 +146,7 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    // 🧩 Compare passwords safely
+    // Compare passwords safely
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       console.warn(`⚠️ Login failed: Incorrect password for ${normalizedEmail}`);
@@ -316,7 +340,7 @@ exports.forgotPassword = async (req, res) => {
 
     await user.update({ resetPasswordToken, resetPasswordExpires });
 
-    const resetUrl = `http://localhost:3000/#/reset-password/${resetToken}`;
+    const resetUrl = `${FRONTEND_URL}/#/reset-password/${resetToken}`;
     await transporter.sendMail({
       from: EMAIL_FROM,
       to: user.email,
@@ -345,10 +369,10 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // ✅ Hash token before lookup
+    //  Hash token before lookup
     const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    // ✅ Find user with matching token and valid expiration
+    // Find user with matching token and valid expiration
     const user = await User.findOne({
       where: {
         resetPasswordToken,

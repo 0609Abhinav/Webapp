@@ -22,8 +22,11 @@
     "multer": "^2.0.2",
     "mysql2": "^3.15.1",
     "nodemailer": "^7.0.9",
+    "openai": "^4.0.0",
     "react-select": "^5.10.2",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "socket.io": "^4.7.2",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
