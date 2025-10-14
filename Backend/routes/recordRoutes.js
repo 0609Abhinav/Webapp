@@ -23,3 +23,11 @@ router.put("/:id", recordController.updateRecord);
 router.delete("/:id", recordController.deleteRecord);
 
 module.exports = router;
+
+
+
+// 🟢 Bulk insert (new records from Excel)
+router.post("/bulk-insert", recordController.bulkInsertRecords);
+
+// 🟡 Bulk update (existing records matched by email or ID)
+router.put("/bulk-update", recordController.bulkUpdateRecords);

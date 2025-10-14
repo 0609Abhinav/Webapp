@@ -1,6 +1,5 @@
 import React from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import logo from '../assets/images/logo.png'
 import {
   CCloseButton,
   CSidebar,
@@ -10,20 +9,23 @@ import {
   CSidebarToggler,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
+import { cilUser } from '@coreui/icons' // person icon
 
 import { AppSidebarNav } from './AppSidebarNav'
-
-// import { logo } from 'src/assets/brand/logo'
-import { sygnet } from 'src/assets/brand/sygnet'
-
-
-// sidebar nav config
 import navigation from '../_nav'
 
 const AppSidebar = () => {
   const dispatch = useDispatch()
   const unfoldable = useSelector((state) => state.sidebarUnfoldable)
   const sidebarShow = useSelector((state) => state.sidebarShow)
+
+  const handleSidebarVisibility = (visible) => {
+    dispatch({ type: 'set', sidebarShow: visible })
+  }
+
+  const toggleUnfoldable = () => {
+    dispatch({ type: 'set', sidebarUnfoldable: !unfoldable })
+  }
 
   return (
     <CSidebar
@@ -32,27 +34,52 @@ const AppSidebar = () => {
       position="fixed"
       unfoldable={unfoldable}
       visible={sidebarShow}
-      onVisibleChange={(visible) => {
-        dispatch({ type: 'set', sidebarShow: visible })
-      }}
+      onVisibleChange={handleSidebarVisibility}
     >
-      <CSidebarHeader className="border-bottom">
-        <CSidebarBrand to="/">
-          {/* <CIcon customClassName="sidebar-brand-full" icon={logo} height={32} /> */}
-          <img src={logo} alt="Logo" className="sidebar-brand-full" height={52} />
-          <CIcon customClassName="sidebar-brand-narrow" icon={sygnet} height={32} />
+      {/* Sidebar Header */}
+      <CSidebarHeader className="border-bottom d-flex align-items-center justify-content-between">
+        <CSidebarBrand to="/" className="d-flex align-items-center gap-2">
+          {/* Person icon */}
+          <CIcon icon={cilUser} height={32} className="text-white" />
+
+          {/* App Name with 2 colors & fonts */}
+          <span className="d-flex align-items-center gap-1">
+            <span
+              style={{
+                color: '#ffffff',
+                fontFamily: 'Verdana, sans-serif',
+                fontWeight: 'bold',
+                fontSize: '1.2rem',
+              }}
+            >
+              Dark
+            </span>
+            <span
+              style={{
+                color: '#ff4d4f', // red
+                fontFamily: 'Georgia, serif',
+                fontWeight: 'bold',
+                fontSize: '1.2rem',
+              }}
+            >
+              Vampire
+            </span>
+          </span>
         </CSidebarBrand>
+
         <CCloseButton
           className="d-lg-none"
-          dark
-          onClick={() => dispatch({ type: 'set', sidebarShow: false })}
+          aria-label="Close sidebar"
+          onClick={() => handleSidebarVisibility(false)}
         />
       </CSidebarHeader>
+
+      {/* Navigation */}
       <AppSidebarNav items={navigation} />
-      <CSidebarFooter className="border-top d-none d-lg-flex">
-        <CSidebarToggler
-          onClick={() => dispatch({ type: 'set', sidebarUnfoldable: !unfoldable })}
-        />
+
+      {/* Sidebar Footer */}
+      <CSidebarFooter className="border-top d-none d-lg-flex justify-content-center">
+        <CSidebarToggler aria-label="Toggle sidebar" onClick={toggleUnfoldable} />
       </CSidebarFooter>
     </CSidebar>
   )

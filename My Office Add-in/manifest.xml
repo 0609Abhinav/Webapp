@@ -6,7 +6,7 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="My Office Add-in"/>
   <Description DefaultValue="A template to get started."/>
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+  <IconUrl DefaultValue="https://localhost:3003/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
   <SupportUrl DefaultValue="https://www.contoso.com/help"/>
   <AppDomains>

@@ -5,7 +5,7 @@
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "forceConsistentCasingInFileNames": true,
-    "jsx": "react",
+    "jsx": "react-jsx",              // <-- updated for React 18
     "module": "ES2020",
     "moduleResolution": "node",
     "noImplicitReturns": true,
@@ -13,19 +13,13 @@
     "outDir": "dist",
     "removeComments": false,
     "sourceMap": true,
-    "target": "es5",
-    "lib": ["es7", "dom"],
+    "target": "es6",                 // <-- use es6 instead of es5
+    "lib": ["ESNext", "DOM"],        // <-- include ESNext for Office JS
     "pretty": true,
     "typeRoots": ["node_modules/@types"],
     "types": ["office-js", "node"]
   },
   "exclude": ["node_modules"],
   "compileOnSave": false,
-  "buildOnSave": false,
-  "ts-node": {
-    "compilerOptions": {
-      "module": "commonjs"
-    },
-    "files": true
-  }
+  "buildOnSave": false
 }
