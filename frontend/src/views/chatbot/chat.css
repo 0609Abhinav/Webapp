@@ -1,0 +1,15 @@
+.chat-bubble.sent {
+  background-color: #0d6efd;
+  color: white;
+  border-radius: 15px 15px 0 15px;
+}
+
+.chat-bubble.received {
+  background-color: #f1f1f1;
+  color: black;
+  border-radius: 15px 15px 15px 0;
+}
+
+.CListGroupItem.active {
+  background-color: #e7f1ff !important;
+}

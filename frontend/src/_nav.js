@@ -1,6 +1,6 @@
 import React from 'react'
 import CIcon from '@coreui/icons-react'
-import { cilStar } from '@coreui/icons'
+import { cilStar, cilUser, cilChatBubble } from '@coreui/icons'
 import { CNavGroup, CNavItem } from '@coreui/react'
 
 const _nav = [
@@ -9,10 +9,17 @@ const _nav = [
     name: 'Pages',
     icon: <CIcon icon={cilStar} customClassName="nav-icon" />,
     items: [
-        {
+      {
         component: CNavItem,
         name: 'User',
         to: '/user',
+        icon: <CIcon icon={cilUser} customClassName="nav-icon" />,
+      },
+      {
+        component: CNavItem,
+        name: 'Chatbot',
+        to: '/chat',
+        icon: <CIcon icon={cilChatBubble} customClassName="nav-icon" />,
       },
     ],
   },

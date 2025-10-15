@@ -54,6 +54,8 @@ const Modals = React.lazy(() => import('./views/notifications/modals/Modals'))
 const Toasts = React.lazy(() => import('./views/notifications/toasts/Toasts'))
 
 const Widgets = React.lazy(() => import('./views/widgets/Widgets'))
+// Chat
+const Chat = React.lazy(() => import('./views/chatbot/Chat'))
 
 const routes = [
   { path: '/', exact: true, name: 'Home' },
@@ -103,6 +105,7 @@ const routes = [
   { path: '/widgets', name: 'Widgets', element: Widgets },
   { path: '/users/:id', name: 'Edit User', element: EditUser },
   { path: '/User', name: 'User', element: User },
+   { path: '/chat', name: 'Chatbot', element: Chat },
   // { path: '/reset-password', name: 'User', element: ResetPassword},
 ]
 
