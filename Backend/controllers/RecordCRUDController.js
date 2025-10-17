@@ -145,7 +145,7 @@ exports.deleteRecord = catchAsync(async (req, res) => {
   });
 });
 
-// 🟢 Robust Bulk Insert (No Duplicate Emails)
+// Robust Bulk Insert (No Duplicate Emails)
 exports.bulkInsertRecords = catchAsync(async (req, res) => {
   const records = req.body;
 
@@ -153,7 +153,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.BAD_REQUEST, "Invalid or empty records array");
   }
 
-  // 1️⃣ Normalize and filter valid records
+  // Normalize and filter valid records
   let validRecords = records
     .filter((r) => r.full_Name && r.email) // Ensure required fields are present
     .map((r) => ({
@@ -180,7 +180,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
     });
   }
 
-  // 2️⃣ Remove duplicates within the uploaded data
+  //  Remove duplicates within the uploaded data
   const seenEmails = new Set();
   const duplicateEmails = [];
   validRecords = validRecords.filter((r) => {
@@ -196,7 +196,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
     console.warn(`Duplicate emails in input data: ${duplicateEmails.join(", ")}`);
   }
 
-  // 3️⃣ Check for existing emails in the database
+  //  Check for existing emails in the database
   const emails = validRecords.map((r) => r.email);
   const existingRecords = await Record.findAll({
     where: {
@@ -219,7 +219,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
     });
   }
 
-  // 4️⃣ Insert new records with transaction
+  //  Insert new records with transaction
   try {
     const created = await sequelize.transaction(async (t) => {
       return await Record.bulkCreate(newRecords, {
@@ -251,7 +251,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
   }
 });
 
-// 🟢 Bulk Update
+//  Bulk Update
 exports.bulkUpdateRecords = catchAsync(async (req, res) => {
   const records = req.body;
 

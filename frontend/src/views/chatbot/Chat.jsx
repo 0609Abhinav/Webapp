@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useRef } from "react"
-import io from "socket.io-client"
-import CIcon from "@coreui/icons-react"
-import { cilChatBubble } from "@coreui/icons"
+import React, { useEffect, useState, useRef } from "react";
+import io from "socket.io-client";
+import axios from "axios";
+import Picker from "emoji-picker-react";
+import CIcon from "@coreui/icons-react";
+import { cilChatBubble, cilMoon, cilSun } from "@coreui/icons";
 import {
   CRow,
   CCol,
@@ -13,287 +15,459 @@ import {
   CAvatar,
   CFormInput,
   CButton,
-} from "@coreui/react"
+  CBadge,
+} from "@coreui/react";
 
 const Chat = () => {
-  const [users, setUsers] = useState([])
-  const [filteredUsers, setFilteredUsers] = useState([])
-  const [selectedUser, setSelectedUser] = useState(null)
-  const [messages, setMessages] = useState([])
-  const [newMessage, setNewMessage] = useState("")
-  const [searchTerm, setSearchTerm] = useState("")
+  const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [connectedUsers, setConnectedUsers] = useState(new Map());
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [darkMode, setDarkMode] = useState(false);
+  const [myAvatarUrl, setMyAvatarUrl] = useState(null);
 
-  const socket = useRef()
-  const token = localStorage.getItem("token")
-  let loggedInUserId = null
+  const socket = useRef();
+  const selectedUserRef = useRef(null);
+  const loggedInUserId = useRef(null);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef();
 
-  // Decode token manually
+  const token = localStorage.getItem("token");
   if (token) {
     try {
-      const payload = JSON.parse(atob(token.split(".")[1]))
-      loggedInUserId = payload.id // adjust according to your JWT payload
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      loggedInUserId.current = payload.id;
     } catch (err) {
-      console.error("Failed to decode token:", err)
+      console.error("Failed to decode token:", err);
     }
   }
 
-  const apiBase = "http://localhost:3002/api"
-  const headers = { Authorization: `Bearer ${token}` }
+  const apiBase = "http://localhost:3002/api";
+  const headers = { Authorization: `Bearer ${token}` };
 
-  // -------------------- Initialize Socket --------------------
+  // ---------------- FETCH LOGGED-IN USER AVATAR ----------------
   useEffect(() => {
-    if (!loggedInUserId) return
+    const fetchAvatar = async () => {
+      try {
+        if (!token) return;
+        const res = await axios.get(`${apiBase}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const userData = res.data.data;
+        setMyAvatarUrl(
+          userData.photo ? `http://localhost:3002/uploads/${userData.photo}` : null
+        );
+      } catch (err) {
+        console.error("Failed to fetch avatar:", err);
+        setMyAvatarUrl(null);
+      }
+    };
+    fetchAvatar();
+  }, []);
 
-    socket.current = io("http://localhost:3002", { transports: ["websocket"] })
+  // ---------------- SOCKET SETUP ----------------
+  useEffect(() => {
+    if (!loggedInUserId.current) return;
+    socket.current = io("http://localhost:3002", { transports: ["websocket"] });
+    socket.current.emit("init", { userId: loggedInUserId.current });
 
-    socket.current.emit("init", { userId: loggedInUserId })
+    socket.current.on("online-users", (onlineMap) => {
+      setConnectedUsers(new Map(Object.entries(onlineMap)));
+    });
 
     socket.current.on("receive-message", (msg) => {
       if (
-        selectedUser &&
-        (msg.from === selectedUser.id || msg.to === selectedUser.id)
+        selectedUserRef.current &&
+        (msg.from === selectedUserRef.current.id || msg.to === selectedUserRef.current.id)
       ) {
-        setMessages((prev) => [...prev, msg])
+        setMessages((prev) => [...prev, msg]);
+      } else {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [msg.from]: (prev[msg.from] || 0) + 1,
+        }));
       }
-    })
+    });
 
-    return () => socket.current.disconnect()
-  }, [loggedInUserId, selectedUser])
+    return () => socket.current.disconnect();
+  }, []);
 
-  // -------------------- Fetch Users --------------------
+  // ---------------- SCROLL ----------------
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // ---------------- FETCH USERS ----------------
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch(`${apiBase}/users`, { headers })
-        const json = await res.json()
+        const res = await fetch(`${apiBase}/users`, { headers });
+        const json = await res.json();
         if (json.status === "success") {
-          const filtered = json.data.filter((user) => user.id !== loggedInUserId)
-          setUsers(filtered)
-          setFilteredUsers(filtered)
+          const filtered = json.data.filter((u) => u.id !== loggedInUserId.current);
+          setUsers(filtered);
+          setFilteredUsers(filtered);
         }
       } catch (err) {
-        console.error(err)
+        console.error(err);
       }
-    }
-    if (loggedInUserId) fetchUsers()
-  }, [apiBase, headers, loggedInUserId])
+    };
+    fetchUsers();
+  }, []);
 
-  // -------------------- Fetch Messages --------------------
+  // ---------------- FETCH MESSAGES ----------------
   const fetchMessages = async (user) => {
-    if (!user || !loggedInUserId) return
+    if (!user) return;
     try {
       const res = await fetch(
-        `${apiBase}/messages?fromUserId=${loggedInUserId}&toUserId=${user.id}`,
+        `${apiBase}/messages?fromUserId=${loggedInUserId.current}&toUserId=${user.id}`,
         { headers }
-      )
-      const json = await res.json()
-      if (json.status === "success") {
-        setMessages(json.data || [])
-      }
+      );
+      const json = await res.json();
+      if (json.status === "success") setMessages(json.data || []);
     } catch (err) {
-      console.error("Error fetching messages:", err)
+      console.error(err);
     }
-  }
+  };
 
-  // -------------------- Handle Search --------------------
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-    const filtered = users.filter((user) =>
-      user.fullName.toLowerCase().includes(e.target.value.toLowerCase())
-    )
-    setFilteredUsers(filtered)
-  }
-
-  // -------------------- Handle Select User --------------------
+  // ---------------- SELECT USER ----------------
   const handleSelectUser = (user) => {
-    setSelectedUser(user)
-    setMessages([]) // Clear previous messages
-    fetchMessages(user)
-  }
+    setSelectedUser(user);
+    selectedUserRef.current = user;
+    fetchMessages(user);
+    setUnreadCounts((prev) => ({ ...prev, [user.id]: 0 }));
+  };
 
-  // -------------------- Handle Send Message --------------------
+  // ---------------- SEND MESSAGE ----------------
   const handleSendMessage = async () => {
-    if (!newMessage || !selectedUser || !loggedInUserId) return
-
-    const msgPayload = {
-      fromUserId: loggedInUserId,
+    if (!newMessage.trim() || !selectedUser) return;
+    const payload = {
+      fromUserId: loggedInUserId.current,
       toUserId: selectedUser.id,
-      text: newMessage,
-    }
-
+      text: newMessage.trim(),
+    };
     try {
-      // Send via REST to store in DB
-      await fetch(`${apiBase}/messages`, {
+      await fetch(`${apiBase}/messages/sent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify(msgPayload),
-      })
-
-      // Send via WebSocket
+        body: JSON.stringify(payload),
+      });
       socket.current.emit("chatMessage", {
-        from: loggedInUserId,
+        from: loggedInUserId.current,
         to: selectedUser.id,
-        message: newMessage,
+        message: newMessage.trim(),
         timestamp: new Date(),
-      })
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          from: loggedInUserId,
-          to: selectedUser.id,
-          text: newMessage,
-          timestamp: new Date(),
-        },
-      ])
-      setNewMessage("")
+      });
+      setNewMessage("");
     } catch (err) {
-      console.error("Error sending message:", err)
+      console.error("Error sending message:", err);
     }
-  }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    console.log("File uploaded:", file.name);
+  };
+
+  // ---------------- MESSAGE RENDER ----------------
+  const renderMessage = (msg, idx) => {
+    const isMine = msg.from === loggedInUserId.current;
+
+    const avatarSrc = isMine
+      ? myAvatarUrl || "https://cdn-icons-png.flaticon.com/512/1946/1946429.png"
+      : selectedUser?.photo
+      ? `http://localhost:3002/uploads/${selectedUser.photo}`
+      : "";
+
+    const senderInitial = isMine ? "Me" : selectedUser?.fullName?.[0];
+
+    return (
+      <div
+        key={idx}
+        className={`d-flex mb-2 ${isMine ? "justify-content-end" : "justify-content-start"}`}
+      >
+        {!isMine && (
+          <CAvatar
+            src={avatarSrc}
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              objectFit: "cover",
+              overflow: "hidden",
+              marginRight: "8px",
+              flexShrink: 0,
+            }}
+          >
+            {!selectedUser?.photo && senderInitial}
+          </CAvatar>
+        )}
+        <div
+          style={{
+            maxWidth: "70%",
+            background: isMine
+              ? "linear-gradient(135deg, #007bff, #0dcaf0)"
+              : darkMode
+              ? "#333"
+              : "#f1f1f1",
+            color: isMine ? "#fff" : darkMode ? "#fff" : "#000",
+            borderRadius: "18px",
+            padding: "10px 14px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div>{msg.message || msg.text}</div>
+          <div
+            style={{
+              fontSize: "10px",
+              textAlign: "right",
+              marginTop: "4px",
+              opacity: 0.6,
+            }}
+          >
+            {new Date(msg.timestamp).toLocaleTimeString()}
+          </div>
+        </div>
+        {isMine && (
+          <CAvatar
+            src={avatarSrc}
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              objectFit: "cover",
+              overflow: "hidden",
+              marginLeft: "8px",
+              flexShrink: 0,
+            }}
+          >
+            {senderInitial}
+          </CAvatar>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <CRow className="h-100">
-      {/* Users List */}
-      <CCol xs={3}>
-        <CCard className="h-100">
-          <CCardHeader className="d-flex align-items-center justify-content-between">
-            <CIcon icon={cilChatBubble} className="me-2" />
-            <span>Users</span>
-          </CCardHeader>
-          <CCardBody className="d-flex flex-column">
-            <CFormInput
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={handleSearch}
-              className="mb-3"
-              style={{ borderRadius: "12px" }}
-            />
-            <CListGroup flush>
-              {filteredUsers.map((user) => (
-                <CListGroupItem
-                  key={user.id}
-                  action
-                  active={selectedUser?.id === user.id}
-                  onClick={() => handleSelectUser(user)}
-                  className="d-flex align-items-center py-2"
-                  style={{ cursor: "pointer" }}
-                >
-                  <CAvatar
-                    src={user.photo ? `http://localhost:3002/uploads/${user.photo}` : ""}
+    <div className={`vh-100 p-3 ${darkMode ? "bg-dark text-white" : "bg-light text-dark"}`}>
+      <CRow className="h-100">
+        {/* ---------------- SIDEBAR ---------------- */}
+        <CCol xs={3}>
+          <CCard
+            className={`h-100 border-0 shadow-sm rounded-4 ${
+              darkMode ? "bg-secondary text-white" : "bg-white"
+            }`}
+          >
+            <CCardHeader
+              className={`d-flex align-items-center justify-content-between rounded-top-4 ${
+                darkMode ? "bg-dark text-white" : "bg-primary text-white"
+              }`}
+            >
+              <div className="d-flex align-items-center">
+                <CIcon icon={cilChatBubble} className="me-2" />
+                <span style={{ fontWeight: 200 }}>Chats</span>
+              </div>
+              <CButton
+                size="sm"
+                color={darkMode ? "light" : "dark"}
+                onClick={() => setDarkMode(!darkMode)}
+                title="Toggle Dark Mode"
+              >
+                <CIcon icon={darkMode ? cilSun : cilMoon} />
+              </CButton>
+            </CCardHeader>
+
+            <CCardBody>
+              <CFormInput
+                placeholder="Search users..."
+                onChange={(e) =>
+                  setFilteredUsers(
+                    users.filter((u) =>
+                      u.fullName.toLowerCase().includes(e.target.value.toLowerCase())
+                    )
+                  )
+                }
+                className="mb-3"
+                style={{ borderRadius: "12px" }}
+              />
+              <CListGroup flush>
+                {filteredUsers.map((user) => (
+                  <CListGroupItem
+                    key={user.id}
+                    action
+                    active={selectedUser?.id === user.id}
+                    onClick={() => handleSelectUser(user)}
+                    className={`d-flex align-items-center justify-content-between py-2 border-0 ${
+                      darkMode ? "bg-dark text-white" : "bg-light text-dark"
+                    }`}
                     style={{
-                      width: "35px",
-                      height: "35px",
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      marginRight: "10px",
+                      cursor: "pointer",
+                      borderRadius: "12px",
+                      marginBottom: "6px",
+                      transition: "background 0.2s",
                     }}
                   >
-                    {!user.photo && user.fullName?.[0]}
-                  </CAvatar>
-                  <span style={{ fontWeight: "500", fontSize: "14px" }}>{user.fullName}</span>
-                </CListGroupItem>
-              ))}
-            </CListGroup>
-          </CCardBody>
-        </CCard>
-      </CCol>
+                    <div className="d-flex align-items-center">
+                      <CAvatar
+                        src={user.photo ? `http://localhost:3002/uploads/${user.photo}` : ""}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          overflow: "hidden",
+                          marginRight: "10px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {!user.photo && user.fullName?.[0]}
+                      </CAvatar>
+                      <div>
+                        <div style={{ fontWeight: "500", fontSize: "14px" }}>{user.fullName}</div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: connectedUsers.has(String(user.id)) ? "lightgreen" : "gray",
+                          }}
+                        >
+                          {connectedUsers.has(String(user.id)) ? "● Online" : "● Offline"}
+                        </div>
+                      </div>
+                    </div>
+                    {unreadCounts[user.id] > 0 && (
+                      <CBadge color="danger" shape="rounded-pill">
+                        {unreadCounts[user.id]}
+                      </CBadge>
+                    )}
+                  </CListGroupItem>
+                ))}
+              </CListGroup>
+            </CCardBody>
+          </CCard>
+        </CCol>
 
-      {/* Chat Window */}
-      <CCol xs={9}>
-        <CCard className="h-100 d-flex flex-column">
-          <CCardHeader>
-            {selectedUser ? (
-              <div className="d-flex align-items-center">
-                <CAvatar
-                  src={selectedUser.photo ? `http://localhost:3002/uploads/${selectedUser.photo}` : ""}
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    marginRight: "10px",
-                  }}
-                >
-                  {!selectedUser.photo && selectedUser.fullName?.[0]}
-                </CAvatar>
-                <strong>{selectedUser.fullName}</strong>
-              </div>
-            ) : (
-              <span>Select a user to chat</span>
-            )}
-          </CCardHeader>
-          <CCardBody
-            className="flex-grow-1 overflow-auto p-3 d-flex flex-column"
-            style={{ maxHeight: "500px" }}
+        {/* ---------------- CHAT AREA ---------------- */}
+        <CCol xs={9}>
+          <CCard
+            className={`h-100 d-flex flex-column shadow-sm border-0 rounded-4 ${
+              darkMode ? "bg-dark text-white" : "bg-white"
+            }`}
           >
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className="d-flex mb-2"
-                style={{
-                  justifyContent: msg.from === loggedInUserId ? "flex-end" : "flex-start",
-                  alignItems: "flex-end",
-                }}
-              >
-                {msg.from !== loggedInUserId && selectedUser && (
+            <CCardHeader
+              className={`d-flex align-items-center ${
+                darkMode ? "bg-secondary text-white" : "bg-light"
+              }`}
+              style={{ borderTopLeftRadius: "1rem", borderTopRightRadius: "1rem" }}
+            >
+              {selectedUser ? (
+                <div className="d-flex align-items-center">
                   <CAvatar
-                    src={selectedUser.photo ? `http://localhost:3002/uploads/${selectedUser.photo}` : ""}
+                    src={
+                      selectedUser.photo
+                        ? `http://localhost:3002/uploads/${selectedUser.photo}`
+                        : ""
+                    }
                     style={{
-                      width: "30px",
-                      height: "30px",
+                      width: "40px",
+                      height: "40px",
                       borderRadius: "50%",
                       objectFit: "cover",
-                      marginRight: "6px",
+                      overflow: "hidden",
+                      marginRight: "10px",
                     }}
                   >
                     {!selectedUser.photo && selectedUser.fullName?.[0]}
                   </CAvatar>
-                )}
-                <div
-                  style={{
-                    maxWidth: "70%",
-                    backgroundColor: msg.from === loggedInUserId ? "#3b82f6" : "#f3f4f6",
-                    color: msg.from === loggedInUserId ? "#fff" : "#111827",
-                    borderRadius: "12px",
-                    padding: "8px",
-                    wordBreak: "break-word",
-                  }}
+                  <div>
+                    <strong>{selectedUser.fullName}</strong>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: connectedUsers.has(String(selectedUser.id))
+                          ? "lightgreen"
+                          : "gray",
+                      }}
+                    >
+                      {connectedUsers.has(String(selectedUser.id)) ? "● Online" : "● Offline"}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <span>Select a user to start chat</span>
+              )}
+            </CCardHeader>
+
+            <CCardBody className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
+              {messages.map(renderMessage)}
+              <div ref={messagesEndRef} />
+            </CCardBody>
+
+            {selectedUser && (
+              <div className="d-flex align-items-center p-2 border-top">
+                <CButton
+                  color={darkMode ? "secondary" : "light"}
+                  className="me-2"
+                  onClick={() => fileInputRef.current.click()}
                 >
-                  {msg.text}
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      marginTop: "4px",
-                      textAlign: "right",
-                      color:
-                        msg.from === loggedInUserId ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.5)",
-                    }}
-                  >
-                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  📎
+                </CButton>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  onChange={handleFileUpload}
+                />
+                <CFormInput
+                  placeholder="Type a message..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                  style={{
+                    borderRadius: "12px",
+                    backgroundColor: darkMode ? "#333" : "#fff",
+                    color: darkMode ? "#fff" : "#000",
+                  }}
+                />
+
+                {/* ---------------- INPUT + EMOJI ---------------- */}
+                <div className="position-relative">
+                  {showEmojiPicker && (
+                    <div
+                      style={{ position: "absolute", bottom: "60px", right: "20px", zIndex: 1000 }}
+                    >
+                      <Picker
+                        onEmojiClick={(emojiObject) =>
+                          setNewMessage((prev) => prev + emojiObject.emoji)
+                        }
+                        height={350}
+                      />
+                    </div>
+                  )}
+                  <div className="d-flex align-items-center p-2 border-top">
+                    <CButton
+                      color={darkMode ? "secondary" : "light"}
+                      className="ms-2"
+                      onClick={() => setShowEmojiPicker((prev) => !prev)}
+                    >
+                      😊
+                    </CButton>
+                    <CButton color="primary" className="ms-2" onClick={handleSendMessage}>
+                      Send
+                    </CButton>
                   </div>
                 </div>
               </div>
-            ))}
-          </CCardBody>
-          {selectedUser && (
-            <div className="d-flex p-2 border-top">
-              <CFormInput
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                style={{ borderRadius: "12px" }}
-              />
-              <CButton color="primary" className="ms-2" onClick={handleSendMessage}>
-                Send
-              </CButton>
-            </div>
-          )}
-        </CCard>
-      </CCol>
-    </CRow>
-  )
-}
+            )}
+          </CCard>
+        </CCol>
+      </CRow>
+    </div>
+  );
+};
 
-export default Chat
+export default Chat;

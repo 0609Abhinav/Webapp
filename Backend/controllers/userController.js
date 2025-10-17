@@ -23,18 +23,6 @@ if (!SMTP_SERVER || !SMTP_PORT || !EMAIL_FROM || !EMAIL_PASSWORD) {
   process.exit(1);
 }
 
-// Nodemailer setup
-// const transporter = nodemailer.createTransport({
-//   host: SMTP_SERVER,
-//   port: Number(SMTP_PORT),
-//   secure: false,
-//   auth: { user: EMAIL_FROM, pass: EMAIL_PASSWORD },
-//   family: 4,
-//   connectionTimeout: 10000,
-//   logger: true,
-//   debug: true,
-// });
-
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_SERVER,
   port: Number(process.env.SMTP_PORT),
@@ -102,30 +90,12 @@ exports.createUser = async (req, res) => {
 };
 
 // ------------------ User Login ------------------
-// exports.loginUser = async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-//     if (!email || !password) return res.status(400).json({ status: 'error', message: 'Email and password are required' });
-
-//     const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
-//     if (!user || !(await bcrypt.compare(password, user.password))) {
-//       return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
-//     }
-
-//     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-//     const { password: _, ...userData } = user.toJSON();
-//     res.status(200).json({ status: 'success', message: 'Login successful', data: userData, token });
-//   } catch (err) {
-//     console.error('Login error:', err);
-//     res.status(500).json({ status: 'error', message: 'Failed to login', error: err.message });
-//   }
-// };
 
 exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 🧩Validate input
+    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         status: 'error',
@@ -426,34 +396,7 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Failed to delete user', error: err.message });
   }
 };
-// ------------------ Update User by ID ------------------
-// exports.updateUserById = async (req, res) => {
-//   try {
-//     const userId = parseInt(req.params.id);
-//     if (!userId) return res.status(400).json({ status: 'error', message: 'User ID is required' });
 
-//     const { fullName, email, phone, street, city, pincode, gender, stateId, state_name } = req.body;
-//     if (!fullName || !email) return res.status(400).json({ status: 'error', message: 'Full name and email are required' });
-
-//     const user = await User.findByPk(userId);
-//     if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
-
-//     const normalizedEmail = email.toLowerCase().trim();
-//     if (normalizedEmail !== user.email) {
-//       const existingUser = await User.findOne({ where: { email: normalizedEmail } });
-//       if (existingUser && existingUser.id !== userId) return res.status(400).json({ status: 'error', message: 'Email already in use' });
-//     }
-
-//     const photo = req.file ? req.file.filename : user.photo;
-//     await user.update({ fullName, email: normalizedEmail, phone, street, city, pincode, gender, stateId, state_name, photo });
-
-//     const { password: _, ...userData } = user.toJSON();
-//     res.status(200).json({ status: 'success', message: 'User updated successfully', data: userData });
-//   } catch (err) {
-//     console.error('Update user by ID error:', err);
-//     res.status(500).json({ status: 'error', message: 'Failed to update user', error: err.message });
-//   }
-// };
 exports.updateUserById = async (req, res) => {
   try {
     const userId = parseInt(req.params.id);

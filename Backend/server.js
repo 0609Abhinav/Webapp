@@ -1,14 +1,142 @@
+
+// const express = require('express');
+// const cors = require('cors');
+// const path = require('path');
+// const { Server } = require('socket.io');
+// const http = require('http');
+// const Message = require('./models/messageModel');
+
+// // Routes
+// const stateRoutes = require('./routes/stateRoutes');
+// const userRoutes = require('./routes/userRoutes');
+// const recordRoutes = require('./routes/recordRoutes');
+// const messageRoutes = require('./routes/messageRoutes');
+
+// // ---------------- EXPRESS APP ----------------
+// const app = express();
+// app.use(cors());
+// app.use(express.json({ limit: '10mb' }));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// // ---------------- ROUTES ----------------
+// app.use('/api/states', stateRoutes);
+// app.use('/api/users', userRoutes);
+// app.use('/api/records', recordRoutes);
+// app.use('/api/messages', messageRoutes);
+
+// // ---------------- SERVER ----------------
+// const PORT = process.env.PORT || 3002;
+// const server = http.createServer(app);
+
+// // ---------------- SOCKET.IO SERVER ----------------
+// const io = new Server(server, {
+//   cors: {
+//     origin: "*", // adjust to your frontend
+//     methods: ["GET", "POST"],
+//   },
+// });
+
+// // Map to track online users (userId => socket)
+// const onlineUsers = new Map();
+
+// // Broadcast online users to everyone
+// const broadcastOnlineUsers = () => {
+//   const users = Array.from(onlineUsers.keys());
+//   io.emit('online-users', users);
+// };
+
+// // ---------------- SOCKET HANDLERS ----------------
+// io.on('connection', (socket) => {
+//   console.log(`🔗 New connection: ${socket.id}`);
+
+//   // Initialize user
+//   socket.on('init', ({ userId }) => {
+//     if (!userId) return;
+//     socket.userId = userId;
+//     onlineUsers.set(userId, socket);
+//     console.log(`✅ User online: ${userId}`);
+    
+//     // Notify this user
+//     socket.emit('system', { message: 'Connected to chat server' });
+
+//     // Broadcast updated online users
+//     broadcastOnlineUsers();
+//   });
+
+//   // Handle chat messages
+//   socket.on('chatMessage', async ({ from, to, message }) => {
+//     if (!from || !to || !message) return;
+//     const timestamp = new Date();
+
+//     try {
+//       // Save message to DB
+//       await Message.createMessage({ fromUserId: from, toUserId: to, messages: message });
+
+//       const payload = { from, to, text: message, timestamp };
+
+//       // Send to recipient if online
+//       const recipientSocket = onlineUsers.get(to);
+//       if (recipientSocket) recipientSocket.emit('receive-message', payload);
+
+//       // Send back to sender
+//       socket.emit('receive-message', payload);
+
+//       console.log(`💬 ${from} → ${to}: ${message}`);
+//     } catch (err) {
+//       console.error('⚠️ Error saving message:', err.message);
+//       socket.emit('error', { message: 'Failed to send message' });
+//     }
+//   });
+
+//   // Handle disconnect
+//   socket.on('disconnect', () => {
+//     if (socket.userId) {
+//       onlineUsers.delete(socket.userId);
+//       console.log(`❌ User offline: ${socket.userId}`);
+//       broadcastOnlineUsers(); // Update all clients
+//     } else {
+//       console.log(`❌ Socket disconnected: ${socket.id}`);
+//     }
+//   });
+
+//   // Handle errors
+//   socket.on('error', (err) => {
+//     console.error(`⚠️ Socket error (${socket.userId || socket.id}):`, err.message);
+//   });
+// });
+
+// // ---------------- SERVER START ----------------
+// server.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
+
+// // ---------------- GLOBAL ERROR HANDLERS ----------------
+// process.on('uncaughtException', (err) => console.error('💥 Uncaught Exception:', err));
+// process.on('unhandledRejection', (reason) => console.error('💥 Unhandled Rejection:', reason));
+
+// // ---------------- GRACEFUL SHUTDOWN ----------------
+// const shutdown = () => {
+//   console.log('🛑 Shutting down server...');
+//   io.sockets.sockets.forEach((s) => s.disconnect(true));
+//   server.close(() => process.exit(0));
+// };
+
+// process.on('SIGTERM', shutdown);
+// process.on('SIGINT', shutdown);
+
+// module.exports = { app, io, onlineUsers };
+
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { Server } = require('socket.io');
 const http = require('http');
+const Message = require('./models/messageModel');
 
 // Routes
 const stateRoutes = require('./routes/stateRoutes');
 const userRoutes = require('./routes/userRoutes');
 const recordRoutes = require('./routes/recordRoutes');
-const messageRoutes = require('./routes/messageRoutes'); // Chat REST API
+const messageRoutes = require('./routes/messageRoutes');
 
 // ---------------- EXPRESS APP ----------------
 const app = express();
@@ -20,7 +148,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/states', stateRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/records', recordRoutes);
-app.use('/api/messages', messageRoutes); // GET & POST chat messages
+app.use('/api/messages', messageRoutes);
 
 // ---------------- SERVER ----------------
 const PORT = process.env.PORT || 3002;
@@ -29,93 +157,91 @@ const server = http.createServer(app);
 // ---------------- SOCKET.IO SERVER ----------------
 const io = new Server(server, {
   cors: {
-    origin: "*", // change to your frontend origin if needed
+    origin: "*", // adjust to your frontend URL if needed
     methods: ["GET", "POST"],
   },
 });
 
-// Track connected users (userId -> socket)
-const connectedUsers = new Map();
+// Map to track online users (userId => socket)
+const onlineUsers = new Map();
+
+// Broadcast list of online users to all clients
+const broadcastOnlineUsers = () => {
+  const users = Array.from(onlineUsers.keys());
+  io.emit('online-users', users);
+};
 
 // ---------------- SOCKET HANDLERS ----------------
 io.on('connection', (socket) => {
-  console.log(`🔗 New Socket.IO connection: ${socket.id}`);
+  console.log(`🔗 New connection: ${socket.id}`);
 
-  // Handle initialization (user joins chat)
-  socket.on('init', (data) => {
-    const { userId } = data;
+  // Initialize user
+  socket.on('init', ({ userId }) => {
     if (!userId) return;
     socket.userId = userId;
-    connectedUsers.set(userId, socket);
-    console.log(`✅ User connected: ${userId}`);
+    onlineUsers.set(String(userId), socket);
+    console.log(`✅ User online: ${userId}`);
+
+    // Notify this user
     socket.emit('system', { message: 'Connected to chat server' });
+
+    // Update everyone
+    broadcastOnlineUsers();
   });
 
-  // Handle chat messages
-  socket.on('chatMessage', (data) => {
-    const { from, to, message } = data;
+  // Handle chat messages (no DB insert here)
+  socket.on('chatMessage', ({ from, to, message, timestamp }) => {
     if (!from || !to || !message) return;
-
-    console.log(`💬 Message from ${from} to ${to}: ${message}`);
 
     const payload = {
       from,
       to,
-      message,
-      timestamp: new Date(),
+      text: message,
+      timestamp: timestamp || new Date(),
     };
 
-    // Send message to recipient if connected
-    const recipientSocket = connectedUsers.get(to);
-    if (recipientSocket) {
-      recipientSocket.emit('receive-message', payload);
-    }
+    // ✅ Broadcast message to recipient if online
+    const recipientSocket = onlineUsers.get(String(to));
+    if (recipientSocket) recipientSocket.emit('receive-message', payload);
 
-    // Send message back to sender
+    // ✅ Echo back to sender (to ensure message shows instantly)
     socket.emit('receive-message', payload);
+
+    console.log(`💬 ${from} → ${to}: ${message}`);
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
     if (socket.userId) {
-      connectedUsers.delete(socket.userId);
-      console.log(`❌ User disconnected: ${socket.userId}`);
+      onlineUsers.delete(String(socket.userId));
+      console.log(`❌ User offline: ${socket.userId}`);
+      broadcastOnlineUsers();
     } else {
       console.log(`❌ Socket disconnected: ${socket.id}`);
     }
   });
 
-  // Handle errors gracefully
+  // Handle socket errors
   socket.on('error', (err) => {
     console.error(`⚠️ Socket error (${socket.userId || socket.id}):`, err.message);
   });
 });
 
 // ---------------- SERVER START ----------------
-server.listen(PORT, () => {
-  console.log(`✅ Backend running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
 
 // ---------------- GLOBAL ERROR HANDLERS ----------------
-process.on('uncaughtException', (err) => {
-  console.error('💥 Uncaught Exception:', err);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('💥 Unhandled Promise Rejection:', reason);
-});
+process.on('uncaughtException', (err) => console.error('💥 Uncaught Exception:', err));
+process.on('unhandledRejection', (reason) => console.error('💥 Unhandled Rejection:', reason));
 
 // ---------------- GRACEFUL SHUTDOWN ----------------
-process.on('SIGTERM', () => {
+const shutdown = () => {
   console.log('🛑 Shutting down server...');
   io.sockets.sockets.forEach((s) => s.disconnect(true));
   server.close(() => process.exit(0));
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('🛑 Manual stop detected (Ctrl+C)');
-  io.sockets.sockets.forEach((s) => s.disconnect(true));
-  server.close(() => process.exit(0));
-});
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
-module.exports = { app, io, connectedUsers };
+module.exports = { app, io, onlineUsers };

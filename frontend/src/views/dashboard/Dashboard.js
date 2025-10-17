@@ -63,8 +63,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (!userData?.id) return
 
-    // Register user ID on socket connect
-    socket.emit('register', userData.id)
+    // // Register user ID on socket connect
+    // socket.emit('register', userData.id)
 
     socket.on('privateMessage', (msg) => {
       setChatMessages((prev) => [...prev, msg])

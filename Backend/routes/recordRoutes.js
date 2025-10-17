@@ -4,7 +4,7 @@ const router = express.Router();
 const recordController = require("../controllers/RecordCRUDController");
 
 /* ---------------------------------------------
-   ✅ RECORD CRUD ROUTES (RESTful API structure)
+   RECORD CRUD ROUTES (RESTful API structure)
 ---------------------------------------------- */
 
 // CREATE Record
@@ -26,8 +26,8 @@ module.exports = router;
 
 
 
-// 🟢 Bulk insert (new records from Excel)
+//  Bulk insert (new records from Excel)
 router.post("/bulk-insert", recordController.bulkInsertRecords);
 
-// 🟡 Bulk update (existing records matched by email or ID)
+//  Bulk update (existing records matched by email or ID)
 router.put("/bulk-update", recordController.bulkUpdateRecords);
