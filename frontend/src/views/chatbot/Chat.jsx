@@ -25,6 +25,7 @@ const Chat = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [filesToUpload, setFilesToUpload] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
   const [darkMode, setDarkMode] = useState(false);
@@ -49,14 +50,11 @@ const Chat = () => {
   const apiBase = "http://localhost:3002/api";
   const headers = { Authorization: `Bearer ${token}` };
 
-  // ---------------- FETCH LOGGED-IN USER AVATAR ----------------
   useEffect(() => {
     const fetchAvatar = async () => {
       try {
         if (!token) return;
-        const res = await axios.get(`${apiBase}/users/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await axios.get(`${apiBase}/users/me`, { headers });
         const userData = res.data.data;
         setMyAvatarUrl(
           userData.photo ? `http://localhost:3002/uploads/${userData.photo}` : null
@@ -69,7 +67,6 @@ const Chat = () => {
     fetchAvatar();
   }, []);
 
-  // ---------------- SOCKET SETUP ----------------
   useEffect(() => {
     if (!loggedInUserId.current) return;
     socket.current = io("http://localhost:3002", { transports: ["websocket"] });
@@ -96,12 +93,10 @@ const Chat = () => {
     return () => socket.current.disconnect();
   }, []);
 
-  // ---------------- SCROLL ----------------
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ---------------- FETCH USERS ----------------
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -119,7 +114,6 @@ const Chat = () => {
     fetchUsers();
   }, []);
 
-  // ---------------- FETCH MESSAGES ----------------
   const fetchMessages = async (user) => {
     if (!user) return;
     try {
@@ -134,7 +128,6 @@ const Chat = () => {
     }
   };
 
-  // ---------------- SELECT USER ----------------
   const handleSelectUser = (user) => {
     setSelectedUser(user);
     selectedUserRef.current = user;
@@ -142,48 +135,55 @@ const Chat = () => {
     setUnreadCounts((prev) => ({ ...prev, [user.id]: 0 }));
   };
 
-  // ---------------- SEND MESSAGE ----------------
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) setFilesToUpload((prev) => [...prev, file]);
+  };
+
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
-    const payload = {
-      fromUserId: loggedInUserId.current,
-      toUserId: selectedUser.id,
-      text: newMessage.trim(),
-    };
+    if (!newMessage.trim() && filesToUpload.length === 0) return;
+    if (!selectedUser) return;
+
+    const formData = new FormData();
+    formData.append("fromUserId", loggedInUserId.current);
+    formData.append("toUserId", selectedUser.id);
+    formData.append("text", newMessage.trim() || "");
+    filesToUpload.forEach((file) => formData.append("files", file));
+
     try {
-      await fetch(`${apiBase}/messages/sent`, {
+      const res = await fetch(`${apiBase}/messages/sent`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify(payload),
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
       });
-      socket.current.emit("chatMessage", {
-        from: loggedInUserId.current,
-        to: selectedUser.id,
-        message: newMessage.trim(),
-        timestamp: new Date(),
-      });
-      setNewMessage("");
+      const data = await res.json();
+      if (data.status === "success") {
+        const messageFromServer = data.data;
+        socket.current.emit("chatMessage", {
+          from: messageFromServer.fromUserId,
+          to: messageFromServer.toUserId,
+          message: messageFromServer.messages,
+          files: messageFromServer.files,
+          timestamp: messageFromServer.timestamp,
+          fromUser: messageFromServer.fromUser,
+          toUser: messageFromServer.toUser,
+        });
+        setMessages((prev) => [...prev, messageFromServer]);
+        setNewMessage("");
+        setFilesToUpload([]);
+      }
     } catch (err) {
       console.error("Error sending message:", err);
     }
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    console.log("File uploaded:", file.name);
-  };
-
-  // ---------------- MESSAGE RENDER ----------------
   const renderMessage = (msg, idx) => {
     const isMine = msg.from === loggedInUserId.current;
-
     const avatarSrc = isMine
       ? myAvatarUrl || "https://cdn-icons-png.flaticon.com/512/1946/1946429.png"
       : selectedUser?.photo
       ? `http://localhost:3002/uploads/${selectedUser.photo}`
       : "";
-
     const senderInitial = isMine ? "Me" : selectedUser?.fullName?.[0];
 
     return (
@@ -222,6 +222,45 @@ const Chat = () => {
           }}
         >
           <div>{msg.message || msg.text}</div>
+          {msg.files && msg.files.length > 0 && (
+            <div className="mt-2 d-flex flex-wrap">
+              {msg.files.map((file, idx) => {
+                const fileUrl = file.startsWith("http") ? file : `http://localhost:3002/${file}`;
+                return (
+                  <a
+                    key={idx}
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      marginRight: "6px",
+                      marginBottom: "6px",
+                      display: "inline-block",
+                    }}
+                  >
+                    {file.match(/\.(jpeg|jpg|png|gif)$/i) ? (
+                      <img
+                        src={fileUrl}
+                        alt="attachment"
+                        style={{ width: "60px", height: "60px", borderRadius: "8px", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          padding: "4px 8px",
+                          background: "#ccc",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                        }}
+                      >
+                        File
+                      </span>
+                    )}
+                  </a>
+                );
+              })}
+            </div>
+          )}
           <div
             style={{
               fontSize: "10px",
@@ -256,7 +295,6 @@ const Chat = () => {
   return (
     <div className={`vh-100 p-3 ${darkMode ? "bg-dark text-white" : "bg-light text-dark"}`}>
       <CRow className="h-100">
-        {/* ---------------- SIDEBAR ---------------- */}
         <CCol xs={3}>
           <CCard
             className={`h-100 border-0 shadow-sm rounded-4 ${
@@ -351,7 +389,6 @@ const Chat = () => {
           </CCard>
         </CCol>
 
-        {/* ---------------- CHAT AREA ---------------- */}
         <CCol xs={9}>
           <CCard
             className={`h-100 d-flex flex-column shadow-sm border-0 rounded-4 ${
@@ -408,59 +445,105 @@ const Chat = () => {
             </CCardBody>
 
             {selectedUser && (
-              <div className="d-flex align-items-center p-2 border-top">
-                <CButton
-                  color={darkMode ? "secondary" : "light"}
-                  className="me-2"
-                  onClick={() => fileInputRef.current.click()}
-                >
-                  📎
-                </CButton>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  style={{ display: "none" }}
-                  onChange={handleFileUpload}
-                />
-                <CFormInput
-                  placeholder="Type a message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  style={{
-                    borderRadius: "12px",
-                    backgroundColor: darkMode ? "#333" : "#fff",
-                    color: darkMode ? "#fff" : "#000",
-                  }}
-                />
-
-                {/* ---------------- INPUT + EMOJI ---------------- */}
-                <div className="position-relative">
-                  {showEmojiPicker && (
-                    <div
-                      style={{ position: "absolute", bottom: "60px", right: "20px", zIndex: 1000 }}
-                    >
-                      <Picker
-                        onEmojiClick={(emojiObject) =>
-                          setNewMessage((prev) => prev + emojiObject.emoji)
-                        }
-                        height={350}
-                      />
-                    </div>
-                  )}
-                  <div className="d-flex align-items-center p-2 border-top">
-                    <CButton
-                      color={darkMode ? "secondary" : "light"}
-                      className="ms-2"
-                      onClick={() => setShowEmojiPicker((prev) => !prev)}
-                    >
-                      😊
-                    </CButton>
-                    <CButton color="primary" className="ms-2" onClick={handleSendMessage}>
-                      Send
-                    </CButton>
+              <div className="p-2 border-top position-relative">
+                {filesToUpload.length > 0 && (
+                  <div className="mb-2 d-flex flex-wrap">
+                    {filesToUpload.map((file, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          position: "relative",
+                          marginRight: "6px",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        {file.type.startsWith("image") ? (
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt="preview"
+                            style={{
+                              width: "60px",
+                              height: "60px",
+                              borderRadius: "8px",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : (
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              background: "#ccc",
+                              borderRadius: "4px",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {file.name}
+                          </span>
+                        )}
+                        <CButton
+                          size="sm"
+                          color="danger"
+                          shape="rounded-circle"
+                          style={{ position: "absolute", top: "-5px", right: "-5px" }}
+                          onClick={() =>
+                            setFilesToUpload((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                        >
+                          ✕
+                        </CButton>
+                      </div>
+                    ))}
                   </div>
+                )}
+                <div className="d-flex align-items-center">
+                  <CButton
+                    color={darkMode ? "secondary" : "light"}
+                    className="me-2"
+                    onClick={() => fileInputRef.current.click()}
+                  >
+                    📎
+                  </CButton>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: "none" }}
+                    onChange={handleFileUpload}
+                  />
+                  <CFormInput
+                    placeholder="Type a message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    style={{
+                      borderRadius: "12px",
+                      backgroundColor: darkMode ? "#333" : "#fff",
+                      color: darkMode ? "#fff" : "#000",
+                    }}
+                  />
+                  <CButton
+                    color={darkMode ? "secondary" : "light"}
+                    className="ms-2"
+                    onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  >
+                    😊
+                  </CButton>
+                  <CButton color="primary" className="ms-2" onClick={handleSendMessage}>
+                    Send
+                  </CButton>
                 </div>
+
+                {showEmojiPicker && (
+                  <div
+                    style={{ position: "absolute", bottom: "60px", right: "20px", zIndex: 1000 }}
+                  >
+                    <Picker
+                      onEmojiClick={(emojiObject) =>
+                        setNewMessage((prev) => prev + emojiObject.emoji)
+                      }
+                      height={350}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </CCard>

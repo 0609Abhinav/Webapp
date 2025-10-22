@@ -396,7 +396,34 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Failed to delete user', error: err.message });
   }
 };
+// ------------------ Update User by ID ------------------
+// exports.updateUserById = async (req, res) => {
+//   try {
+//     const userId = parseInt(req.params.id);
+//     if (!userId) return res.status(400).json({ status: 'error', message: 'User ID is required' });
 
+//     const { fullName, email, phone, street, city, pincode, gender, stateId, state_name } = req.body;
+//     if (!fullName || !email) return res.status(400).json({ status: 'error', message: 'Full name and email are required' });
+
+//     const user = await User.findByPk(userId);
+//     if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
+
+//     const normalizedEmail = email.toLowerCase().trim();
+//     if (normalizedEmail !== user.email) {
+//       const existingUser = await User.findOne({ where: { email: normalizedEmail } });
+//       if (existingUser && existingUser.id !== userId) return res.status(400).json({ status: 'error', message: 'Email already in use' });
+//     }
+
+//     const photo = req.file ? req.file.filename : user.photo;
+//     await user.update({ fullName, email: normalizedEmail, phone, street, city, pincode, gender, stateId, state_name, photo });
+
+//     const { password: _, ...userData } = user.toJSON();
+//     res.status(200).json({ status: 'success', message: 'User updated successfully', data: userData });
+//   } catch (err) {
+//     console.error('Update user by ID error:', err);
+//     res.status(500).json({ status: 'error', message: 'Failed to update user', error: err.message });
+//   }
+// };
 exports.updateUserById = async (req, res) => {
   try {
     const userId = parseInt(req.params.id);

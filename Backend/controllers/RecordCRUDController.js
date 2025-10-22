@@ -219,7 +219,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
     });
   }
 
-  //  Insert new records with transaction
+  // 4️⃣ Insert new records with transaction
   try {
     const created = await sequelize.transaction(async (t) => {
       return await Record.bulkCreate(newRecords, {
@@ -251,7 +251,7 @@ exports.bulkInsertRecords = catchAsync(async (req, res) => {
   }
 });
 
-//  Bulk Update
+// 🟢 Bulk Update
 exports.bulkUpdateRecords = catchAsync(async (req, res) => {
   const records = req.body;
 

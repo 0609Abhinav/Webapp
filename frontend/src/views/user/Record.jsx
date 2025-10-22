@@ -66,7 +66,7 @@ const RecordsTable = () => {
   const [errors, setErrors] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('full_Name');
-  const [sortOrder, setSortOrder] = useState('ASC');
+  const [sortOrder, setSortOrder] = useState('DESC');
   const [pagination, setPagination] = useState({
     pageNumber: 1,
     pageSize: 5,
@@ -87,6 +87,7 @@ const RecordsTable = () => {
   const wsUrl = 'ws://localhost:3002';
   useEffect(() => {
     const ws = new WebSocket(wsUrl);
+
     const mapRecord = (r) => ({
       id: r.id,
       full_Name: r.full_Name || r.fullName || '',
@@ -97,22 +98,26 @@ const RecordsTable = () => {
       state_name: r.state_name || '',
       city: r.city || '',
       address: r.address || r.street || '',
+      updatedAt: r.updatedAt || new Date().toISOString(),
     });
 
     ws.onopen = () => console.log('Connected to WebSocket server');
+
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       switch (message.type) {
         case 'init':
-          setRecords(message.data.map(mapRecord));
+          setRecords(message.data.map(mapRecord).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
           break;
         case 'insert':
-          setRecords((prev) => [...prev, mapRecord(message.data)]);
+          setRecords((prev) => [mapRecord(message.data), ...prev]);
           break;
         case 'update':
-          setRecords((prev) =>
-            prev.map((r) => (r.id === message.data.id ? mapRecord(message.data) : r))
-          );
+          setRecords((prev) => {
+            const updated = mapRecord(message.data);
+            const filtered = prev.filter((r) => r.id !== updated.id);
+            return [updated, ...filtered];
+          });
           break;
         case 'delete':
           setRecords((prev) => prev.filter((r) => r.id !== message.data.id));
@@ -121,8 +126,10 @@ const RecordsTable = () => {
           break;
       }
     };
+
     ws.onerror = (err) => console.error('WebSocket error:', err);
     ws.onclose = () => console.log('WebSocket connection closed');
+
     return () => ws.close();
   }, []);
 
@@ -145,8 +152,9 @@ const RecordsTable = () => {
         },
         headers: { Authorization: `Bearer ${token}` },
       });
-      setRecords(
-        data.data.map((r) => ({
+
+      const sortedData = data.data
+        .map((r) => ({
           id: r.id,
           full_Name: r.full_Name,
           email: r.email,
@@ -156,8 +164,11 @@ const RecordsTable = () => {
           state_name: r.state_name,
           city: r.city,
           address: r.address,
+          updatedAt: r.updatedAt || new Date().toISOString(),
         }))
-      );
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+      setRecords(sortedData);
       setPagination((prev) => ({
         ...prev,
         totalPages: data.totalPages,
@@ -268,14 +279,10 @@ const RecordsTable = () => {
 
   const handlePageChange = (page) => setPagination((prev) => ({ ...prev, pageNumber: page }));
   const handleNext = () => {
-    if (pagination.pageNumber < pagination.totalPages) {
-      handlePageChange(pagination.pageNumber + 1);
-    }
+    if (pagination.pageNumber < pagination.totalPages) handlePageChange(pagination.pageNumber + 1);
   };
   const handlePrev = () => {
-    if (pagination.pageNumber > 1) {
-      handlePageChange(pagination.pageNumber - 1);
-    }
+    if (pagination.pageNumber > 1) handlePageChange(pagination.pageNumber - 1);
   };
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -291,6 +298,7 @@ const RecordsTable = () => {
       let pageNumber = 1;
       const pageSize = 100;
       let totalPages = 1;
+
       do {
         const { data } = await axios.get('http://localhost:3002/api/records', {
           params: { pageSize, pageNumber, searchTerm, sortField, sortOrder },
@@ -311,13 +319,15 @@ const RecordsTable = () => {
         Email: r.email,
         Phone: r.phone,
         Gender: r.gender,
-        DOB: r.dob,
+        DOB: r.dob ? new Date(r.dob).toLocaleDateString() : '',
         State: r.state_name,
         City: r.city,
         Address: r.address,
       }));
 
-      // Calculate column widths
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Column widths
       const colWidths = exportData.reduce((acc, row) => {
         Object.keys(row).forEach((key, i) => {
           const value = String(row[key] || '');
@@ -325,17 +335,16 @@ const RecordsTable = () => {
         });
         return acc;
       }, []);
+      worksheet['!cols'] = colWidths.map((w) => ({ wch: Math.min(Math.max(w, 12), 50) }));
 
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      worksheet['!cols'] = colWidths.map((w) => ({ wch: Math.min(Math.max(w, 10), 50) }));
-
-      // Apply bold style and borders to headers
+      // Header styling
       const range = XLSX.utils.decode_range(worksheet['!ref']);
       for (let C = range.s.c; C <= range.e.c; ++C) {
         const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
         if (!worksheet[cellAddress]) continue;
         worksheet[cellAddress].s = {
-          font: { bold: true },
+          font: { bold: true, color: { rgb: 'FFFFFF' } },
+          fill: { fgColor: { rgb: '4F81BD' } },
           alignment: { horizontal: 'center', vertical: 'center' },
           border: {
             top: { style: 'thin' },
@@ -346,11 +355,30 @@ const RecordsTable = () => {
         };
       }
 
+      // Zebra striping
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        const bgColor = R % 2 === 0 ? 'D9E1F2' : 'FFFFFF';
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[cellAddress]) continue;
+          worksheet[cellAddress].s = {
+            fill: { fgColor: { rgb: bgColor } },
+            border: {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' },
+            },
+          };
+        }
+      }
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Records');
-      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
       const dataBlob = new Blob([excelBuffer], { type: 'application/octet-stream' });
-      saveAs(dataBlob, 'records.xlsx');
+      saveAs(dataBlob, 'Records_Export.xlsx');
       showToast('Excel file downloaded successfully');
     } catch (error) {
       console.error('Error exporting Excel:', error);
@@ -358,6 +386,16 @@ const RecordsTable = () => {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // -------------------- Modal Handlers --------------------
+  const openAddModal = () => {
+    resetForm();
+    setVisible(true);
+  };
+  const closeModal = () => {
+    setVisible(false);
+    resetForm();
   };
 
   // -------------------- Upload Handler --------------------
@@ -422,16 +460,6 @@ const RecordsTable = () => {
     }
   };
 
-  // -------------------- Modal Handlers --------------------
-  const openAddModal = () => {
-    resetForm();
-    setVisible(true);
-  };
-  const closeModal = () => {
-    setVisible(false);
-    resetForm();
-  };
-
   // -------------------- Render --------------------
   return (
     <div className="container mx-auto p-4">
@@ -461,7 +489,7 @@ const RecordsTable = () => {
       {/* Table Card */}
       <CCard className="shadow-lg border-0">
         <CCardHeader className="bg-gradient-to-r from-blue-600 to-blue-400 text-white d-flex justify-content-between align-items-center">
-         <h4 className="mb-0 font-semibold" style={{ color: 'red' }}>Records Management</h4>
+          <h4 className="mb-0 font-semibold" style={{ color: 'red' }}>Records Management</h4>
           <div className="d-flex gap-2">
             <CButton color="light" onClick={openAddModal} className="font-medium">
               <CIcon icon={cilPlus} className="me-1" /> Add Record
@@ -479,7 +507,9 @@ const RecordsTable = () => {
             </CButton>
           </div>
         </CCardHeader>
+
         <CCardBody className="bg-white">
+          {/* Search */}
           <CInputGroup className="mb-4" style={{ maxWidth: '400px' }}>
             <CInputGroupText className="bg-gray-100">
               <CIcon icon={cilUser} />
@@ -502,13 +532,7 @@ const RecordsTable = () => {
                     <CTableHeaderCell
                       key={idx}
                       onClick={() =>
-                        field !== 'phone' &&
-                        field !== 'gender' &&
-                        field !== 'dob' &&
-                        field !== 'state_name' &&
-                        field !== 'city' &&
-                        field !== 'address' &&
-                        handleSort(field)
+                        field === 'full_Name' && handleSort(field)
                       }
                       className="cursor-pointer font-semibold text-gray-700"
                     >
@@ -534,20 +558,10 @@ const RecordsTable = () => {
                   <CTableDataCell>{r.city}</CTableDataCell>
                   <CTableDataCell>{r.address}</CTableDataCell>
                   <CTableDataCell className="d-flex gap-2">
-                    <CButton
-                      color="info"
-                      size="sm"
-                      onClick={() => handleEdit(r)}
-                      className="hover:bg-blue-600"
-                    >
+                    <CButton color="info" size="sm" onClick={() => handleEdit(r)} className="hover:bg-blue-600">
                       <CIcon icon={cilPencil} />
                     </CButton>
-                    <CButton
-                      color="danger"
-                      size="sm"
-                      onClick={() => handleDelete(r)}
-                      className="hover:bg-red-600"
-                    >
+                    <CButton color="danger" size="sm" onClick={() => handleDelete(r)} className="hover:bg-red-600">
                       <CIcon icon={cilTrash} />
                     </CButton>
                   </CTableDataCell>
@@ -556,81 +570,69 @@ const RecordsTable = () => {
             </CTableBody>
           </CTable>
 
-         {/* Pagination */}
-{/* Pagination */}
-<div className="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
-  {/* Page Size Selector */}
-  <CFormSelect
-    value={pagination.pageSize}
-    onChange={(e) =>
-      setPagination((prev) => ({
-        ...prev,
-        pageSize: Number(e.target.value),
-        pageNumber: 1,
-      }))
-    }
-    className="text-sm px-3 py-1.5 border border-gray-300 rounded w-auto"
-    style={{ minWidth: '3rem' }} // slightly wider for readability
-  >
-    {pageSizeOptions.map((size) => (
-      <option key={size} value={size}>
-        {size}
-      </option>
-    ))}
-  </CFormSelect>
+          {/* Pagination */}
+          <div className="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+            <CFormSelect
+              value={pagination.pageSize}
+              onChange={(e) =>
+                setPagination((prev) => ({ ...prev, pageSize: Number(e.target.value), pageNumber: 1 }))
+              }
+              className="text-sm px-3 py-1.5 border border-gray-300 rounded w-auto"
+              style={{ minWidth: '3rem' }}
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </CFormSelect>
 
-  {/* Pagination Controls */}
-  <div className="d-flex align-items-center gap-2">
-    <CButton
-      color="light"
-      size="sm"
-      disabled={pagination.pageNumber === 1}
-      onClick={handlePrev}
-      className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100"
-    >
-      Prev
-    </CButton>
+            <div className="d-flex align-items-center gap-2">
+              <CButton
+                color="light"
+                size="sm"
+                disabled={pagination.pageNumber === 1}
+                onClick={handlePrev}
+                className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Prev
+              </CButton>
 
-    <CPagination align="center" className="m-0">
-      {[...Array(pagination.totalPages).keys()].map((i) => (
-        <CPaginationItem
-          key={i + 1}
-          active={i + 1 === pagination.pageNumber}
-          onClick={() => handlePageChange(i + 1)}
-          className={`text-sm px-3 py-1.5 rounded ${
-            i + 1 === pagination.pageNumber
-              ? 'bg-blue-500 text-white border-blue-500'
-              : 'border border-gray-300 hover:bg-blue-50 text-gray-700'
-          }`}
-          style={{ minWidth: '2.5rem' }}
-        >
-          {i + 1}
-        </CPaginationItem>
-      ))}
-    </CPagination>
+              <CPagination align="center" className="m-0">
+                {[...Array(pagination.totalPages).keys()].map((i) => (
+                  <CPaginationItem
+                    key={i + 1}
+                    active={i + 1 === pagination.pageNumber}
+                    onClick={() => handlePageChange(i + 1)}
+                    className={`text-sm px-3 py-1.5 rounded ${
+                      i + 1 === pagination.pageNumber
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'border border-gray-300 hover:bg-blue-50 text-gray-700'
+                    }`}
+                    style={{ minWidth: '2.5rem' }}
+                  >
+                    {i + 1}
+                  </CPaginationItem>
+                ))}
+              </CPagination>
 
-    <CButton
-      color="light"
-      size="sm"
-      disabled={pagination.pageNumber === pagination.totalPages}
-      onClick={handleNext}
-      className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100"
-    >
-      Next
-    </CButton>
-  </div>
+              <CButton
+                color="light"
+                size="sm"
+                disabled={pagination.pageNumber === pagination.totalPages}
+                onClick={handleNext}
+                className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Next
+              </CButton>
+            </div>
 
-  {/* Records Info */}
-  <div className="text-sm text-gray-600">
-    {records.length > 0
-      ? `Showing ${(pagination.pageNumber - 1) * pagination.pageSize + 1} to ${
-          (pagination.pageNumber - 1) * pagination.pageSize + records.length
-        } of ${pagination.totalRecords}`
-      : 'No records found'}
-  </div>
-</div>
-
-
+            <div className="text-sm text-gray-600">
+              {records.length > 0
+                ? `Showing ${(pagination.pageNumber - 1) * pagination.pageSize + 1} to ${
+                    (pagination.pageNumber - 1) * pagination.pageSize + records.length
+                  } of ${pagination.totalRecords}`
+                : 'No records found'}
+            </div>
+          </div>
         </CCardBody>
       </CCard>
 

@@ -43,6 +43,7 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.7.1",
     "redux": "5.0.1",
+    "simple-peer": "^9.11.1",
     "simplebar-react": "^3.3.2",
     "socket.io-client": "^4.8.1"
   },
