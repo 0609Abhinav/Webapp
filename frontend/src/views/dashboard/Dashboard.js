@@ -210,7 +210,15 @@ const Dashboard = () => {
             <CTableBody>
               {currentUsers.map((user, idx) => (
                 <CTableRow key={idx}>
-                  <CTableDataCell><CAvatar src={user.photo ? `${baseUploadUrl}${user.photo}` : 'https://cdn-icons-png.flaticon.com/512/149/149071.png'} size="md" /></CTableDataCell>
+                  <CTableDataCell><CAvatar src={user.photo ? `${baseUploadUrl}${user.photo}` : 'https://cdn-icons-png.flaticon.com/512/149/149071.png'} size="md"           
+                  style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      overflow: "hidden",
+                      marginRight: "10px",
+                    }}/></CTableDataCell>
                   <CTableDataCell>{user.fullName}</CTableDataCell>
                   <CTableDataCell>{user.email}</CTableDataCell>
                   <CTableDataCell><CBadge color={user.gender === 'Male' ? 'info' : 'danger'}>{user.gender}</CBadge></CTableDataCell>
