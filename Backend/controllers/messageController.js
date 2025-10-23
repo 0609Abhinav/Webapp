@@ -524,26 +524,164 @@
 // };
 
 
+// const User = require('../models/User');
+// const Message = require('../models/messageModel');
+
+// // -------------------- GET CHAT MESSAGES --------------------
+// exports.getMessages = async (req, res) => {
+//   try {
+//     const fromUserId = Number(req.query.fromUserId);
+//     const toUserId = Number(req.query.toUserId);
+
+//     if (!Number.isInteger(fromUserId) || !Number.isInteger(toUserId)) {
+//       return res.status(400).json({
+//         status: 'error',
+//         message: 'Invalid or missing user IDs.',
+//       });
+//     }
+
+//     // Fetch messages between these two users only
+//     const messages = await Message.findChat(fromUserId, toUserId);
+
+//     const formattedMessages = messages.map((msg) => ({
+//       id: msg.id,
+//       from: msg.fromUserId,
+//       to: msg.toUserId,
+//       message: msg.messages,
+//       files: msg.files || [],
+//       timestamp: msg.timestamp,
+//       fromUser: msg.fromUser,
+//       toUser: msg.toUser,
+//     }));
+
+//     return res.status(200).json({
+//       status: 'success',
+//       data: formattedMessages,
+//       count: formattedMessages.length,
+//     });
+//   } catch (err) {
+//     console.error('⚠️ Error fetching messages:', err);
+//     return res.status(500).json({
+//       status: 'error',
+//       message: 'Internal server error',
+//       error: err.message,
+//     });
+//   }
+// };
+
+// // -------------------- SEND MESSAGE --------------------
+// exports.sendMessage = async (req, res) => {
+//   try {
+//     const fromUserId = Number(req.body.fromUserId);
+//     const toUserId = Number(req.body.toUserId);
+//     const text = req.body.text?.trim();
+
+//     if (!Number.isInteger(fromUserId) || !Number.isInteger(toUserId)) {
+//       return res.status(400).json({
+//         status: 'error',
+//         message: 'Invalid user IDs.',
+//       });
+//     }
+
+//     if (fromUserId === toUserId) {
+//       return res.status(400).json({
+//         status: 'error',
+//         message: 'Cannot send a message to yourself.',
+//       });
+//     }
+
+//     // Map uploaded files to Cloudinary secure URLs
+//     const uploadedFiles = req.files
+//       ? req.files.map((file) => file.secure_url || file.path || file.filename)
+//       : [];
+
+//     if (!text && uploadedFiles.length === 0) {
+//       return res.status(400).json({
+//         status: 'error',
+//         message: 'Message must contain text or at least one file.',
+//       });
+//     }
+
+//     const messageData = {
+//       fromUserId,
+//       toUserId,
+//       messages: text || '',
+//       files: uploadedFiles,
+//       timestamp: new Date(),
+//     };
+
+//     const fullMessage = await Message.createMessage(messageData);
+
+//     return res.status(201).json({
+//       status: 'success',
+//       data: {
+//         id: fullMessage.id,
+//         from: fullMessage.fromUserId,
+//         to: fullMessage.toUserId,
+//         message: fullMessage.messages,
+//         files: fullMessage.files || [],
+//         timestamp: fullMessage.timestamp,
+//       },
+//       message: 'Message sent successfully.',
+//     });
+//   } catch (err) {
+//     console.error('⚠️ Error sending message:', err);
+//     return res.status(500).json({
+//       status: 'error',
+//       message: 'Internal server error',
+//       error: err.message,
+//     });
+//   }
+// };
+
+// // -------------------- GET FILES FOR CHAT --------------------
+// exports.getFilesForChat = async (req, res) => {
+//   try {
+//     const fromUserId = Number(req.query.fromUserId);
+//     const toUserId = Number(req.query.toUserId);
+
+//     if (!Number.isInteger(fromUserId) || !Number.isInteger(toUserId)) {
+//       return res.status(400).json({
+//         status: 'error',
+//         message: 'Invalid or missing user IDs.',
+//       });
+//     }
+
+//     const messages = await Message.findChat(fromUserId, toUserId);
+//     const files = messages.flatMap((msg) => msg.files || []);
+
+//     return res.status(200).json({
+//       status: 'success',
+//       count: files.length,
+//       data: files,
+//     });
+//   } catch (err) {
+//     console.error('⚠️ Error fetching chat files:', err);
+//     return res.status(500).json({
+//       status: 'error',
+//       message: 'Internal server error',
+//       error: err.message,
+//     });
+//   }
+// };
+
+
 const User = require('../models/User');
 const Message = require('../models/messageModel');
 
-// -------------------- GET CHAT MESSAGES --------------------
+// ---------------- GET MESSAGES ----------------
 exports.getMessages = async (req, res) => {
   try {
     const fromUserId = Number(req.query.fromUserId);
     const toUserId = Number(req.query.toUserId);
 
     if (!Number.isInteger(fromUserId) || !Number.isInteger(toUserId)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid or missing user IDs.',
-      });
+      return res.status(400).json({ status: 'error', message: 'Invalid or missing user IDs.' });
     }
 
-    // Fetch messages between these two users only
     const messages = await Message.findChat(fromUserId, toUserId);
 
-    const formattedMessages = messages.map((msg) => ({
+    const formatted = messages.map((msg) => ({
       id: msg.id,
       from: msg.fromUserId,
       to: msg.toUserId,
@@ -554,22 +692,14 @@ exports.getMessages = async (req, res) => {
       toUser: msg.toUser,
     }));
 
-    return res.status(200).json({
-      status: 'success',
-      data: formattedMessages,
-      count: formattedMessages.length,
-    });
+    return res.status(200).json({ status: 'success', data: formatted, count: formatted.length });
   } catch (err) {
     console.error('⚠️ Error fetching messages:', err);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-      error: err.message,
-    });
+    return res.status(500).json({ status: 'error', message: 'Internal server error', error: err.message });
   }
 };
 
-// -------------------- SEND MESSAGE --------------------
+// ---------------- SEND MESSAGE ----------------
 exports.sendMessage = async (req, res) => {
   try {
     const fromUserId = Number(req.body.fromUserId);
@@ -577,29 +707,20 @@ exports.sendMessage = async (req, res) => {
     const text = req.body.text?.trim();
 
     if (!Number.isInteger(fromUserId) || !Number.isInteger(toUserId)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid user IDs.',
-      });
+      return res.status(400).json({ status: 'error', message: 'Invalid user IDs.' });
     }
 
     if (fromUserId === toUserId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Cannot send a message to yourself.',
-      });
+      return res.status(400).json({ status: 'error', message: 'Cannot send a message to yourself.' });
     }
 
-    // Map uploaded files to Cloudinary secure URLs
+    // Map files to Cloudinary URLs
     const uploadedFiles = req.files
       ? req.files.map((file) => file.secure_url || file.path || file.filename)
       : [];
 
     if (!text && uploadedFiles.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Message must contain text or at least one file.',
-      });
+      return res.status(400).json({ status: 'error', message: 'Message must contain text or at least one file.' });
     }
 
     const messageData = {
@@ -626,41 +747,27 @@ exports.sendMessage = async (req, res) => {
     });
   } catch (err) {
     console.error('⚠️ Error sending message:', err);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-      error: err.message,
-    });
+    return res.status(500).json({ status: 'error', message: 'Internal server error', error: err.message });
   }
 };
 
-// -------------------- GET FILES FOR CHAT --------------------
+// ---------------- GET FILES FOR CHAT ----------------
 exports.getFilesForChat = async (req, res) => {
   try {
     const fromUserId = Number(req.query.fromUserId);
     const toUserId = Number(req.query.toUserId);
 
     if (!Number.isInteger(fromUserId) || !Number.isInteger(toUserId)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid or missing user IDs.',
-      });
+      return res.status(400).json({ status: 'error', message: 'Invalid or missing user IDs.' });
     }
 
     const messages = await Message.findChat(fromUserId, toUserId);
     const files = messages.flatMap((msg) => msg.files || []);
 
-    return res.status(200).json({
-      status: 'success',
-      count: files.length,
-      data: files,
-    });
+    return res.status(200).json({ status: 'success', count: files.length, data: files });
   } catch (err) {
     console.error('⚠️ Error fetching chat files:', err);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-      error: err.message,
-    });
+    return res.status(500).json({ status: 'error', message: 'Internal server error', error: err.message });
   }
 };
+            

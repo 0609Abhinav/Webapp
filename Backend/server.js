@@ -247,6 +247,135 @@
 // module.exports = { app, io, onlineUsers };
 
 
+// require('dotenv').config();
+// const express = require('express');
+// const cors = require('cors');
+// const path = require('path');
+// const { Server } = require('socket.io');
+// const http = require('http');
+// const axios = require('axios');
+// const Message = require('./models/messageModel');
+
+// // Routes
+// const stateRoutes = require('./routes/stateRoutes');
+// const userRoutes = require('./routes/userRoutes');
+// const recordRoutes = require('./routes/recordRoutes');
+// const messageRoutes = require('./routes/messageRoutes');
+
+// // ---------------- EXPRESS APP ----------------
+// const app = express();
+// app.use(cors());
+// app.use(express.json({ limit: '10mb' }));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// // ---------------- ROUTES ----------------
+// app.use('/api/states', stateRoutes);
+// app.use('/api/users', userRoutes);
+// app.use('/api/records', recordRoutes);
+// app.use('/api/messages', messageRoutes);
+
+// // ✅ ---------------- GEMINI AI PROXY ROUTE ----------------
+// app.post('/api/gemini', async (req, res) => {
+//   try {
+//     const { message } = req.body;
+//     if (!message) {
+//       return res.status(400).json({ error: 'Message text is required' });
+//     }
+
+//     const response = await axios.post(
+//       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+//       {
+//         contents: [{ parts: [{ text: message }] }],
+//       },
+//       {
+//         headers: {
+//           'Content-Type': 'application/json',
+//           'X-goog-api-key': process.env.GEMINI_API_KEY,
+//         },
+//       }
+//     );
+
+//     const reply =
+//       response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+//       "I'm not sure how to respond to that.";
+
+//     res.json({ reply });
+//   } catch (error) {
+//     console.error('❌ Gemini API Error:', error.response?.data || error.message);
+//     res.status(500).json({
+//       error: 'Error communicating with Gemini API',
+//       details: error.response?.data || error.message,
+//     });
+//   }
+// });
+
+// // ---------------- SERVER ----------------
+// const PORT = process.env.PORT || 3002;
+// const server = http.createServer(app);
+
+// // ---------------- SOCKET.IO SERVER ----------------
+// const io = new Server(server, {
+//   cors: {
+//     origin: '*',
+//     methods: ['GET', 'POST'],
+//   },
+// });
+
+// const onlineUsers = new Map();
+
+// const broadcastOnlineUsers = () => {
+//   const users = Array.from(onlineUsers.keys());
+//   io.emit('online-users', users);
+// };
+
+// io.on('connection', (socket) => {
+//   console.log(`🔗 Connected: ${socket.id}`);
+
+//   socket.on('init', ({ userId }) => {
+//     if (!userId) return;
+//     socket.userId = userId;
+//     onlineUsers.set(String(userId), socket);
+//     console.log(`✅ User online: ${userId}`);
+//     socket.emit('system', { message: 'Connected to chat server' });
+//     broadcastOnlineUsers();
+//   });
+
+//   socket.on('chatMessage', ({ from, to, message, timestamp }) => {
+//     if (!from || !message) return;
+
+//     const payload = { from, to, text: message, timestamp: timestamp || new Date() };
+
+//     // Broadcast to sender
+//     socket.emit('receive-message', payload);
+//     console.log(`💬 ${from}: ${message}`);
+//   });
+
+//   socket.on('disconnect', () => {
+//     if (socket.userId) {
+//       onlineUsers.delete(String(socket.userId));
+//       console.log(`❌ User offline: ${socket.userId}`);
+//       broadcastOnlineUsers();
+//     }
+//   });
+// });
+
+// server.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
+
+// process.on('uncaughtException', (err) => console.error('💥 Uncaught Exception:', err));
+// process.on('unhandledRejection', (reason) => console.error('💥 Unhandled Rejection:', reason));
+
+// const shutdown = () => {
+//   console.log('🛑 Shutting down...');
+//   io.sockets.sockets.forEach((s) => s.disconnect(true));
+//   server.close(() => process.exit(0));
+// };
+// process.on('SIGTERM', shutdown);
+// process.on('SIGINT', shutdown);
+
+// module.exports = { app, io, onlineUsers };
+
+
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -274,7 +403,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/messages', messageRoutes);
 
-// ✅ ---------------- GEMINI AI PROXY ROUTE ----------------
+// ---------------- GEMINI AI PROXY ----------------
 app.post('/api/gemini', async (req, res) => {
   try {
     const { message } = req.body;
@@ -284,24 +413,14 @@ app.post('/api/gemini', async (req, res) => {
 
     const response = await axios.post(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-      {
-        contents: [{ parts: [{ text: message }] }],
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-goog-api-key': process.env.GEMINI_API_KEY,
-        },
-      }
+      { contents: [{ parts: [{ text: message }] }] },
+      { headers: { 'Content-Type': 'application/json', 'X-goog-api-key': process.env.GEMINI_API_KEY } }
     );
 
-    const reply =
-      response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "I'm not sure how to respond to that.";
-
+    const reply = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure how to respond to that.";
     res.json({ reply });
   } catch (error) {
-    console.error('❌ Gemini API Error:', error.response?.data || error.message);
+    console.error(' Gemini API Error:', error.response?.data || error.message);
     res.status(500).json({
       error: 'Error communicating with Gemini API',
       details: error.response?.data || error.message,
@@ -309,63 +428,83 @@ app.post('/api/gemini', async (req, res) => {
   }
 });
 
-// ---------------- SERVER ----------------
+// ---------------- SERVER & SOCKET.IO ----------------
 const PORT = process.env.PORT || 3002;
 const server = http.createServer(app);
 
-// ---------------- SOCKET.IO SERVER ----------------
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
 const onlineUsers = new Map();
 
+// Broadcast list of online users
 const broadcastOnlineUsers = () => {
-  const users = Array.from(onlineUsers.keys());
-  io.emit('online-users', users);
+  io.emit('online-users', Array.from(onlineUsers.keys()));
 };
 
+// Socket.IO connection
 io.on('connection', (socket) => {
   console.log(`🔗 Connected: ${socket.id}`);
 
+  // Initialize user
   socket.on('init', ({ userId }) => {
     if (!userId) return;
     socket.userId = userId;
     onlineUsers.set(String(userId), socket);
-    console.log(`✅ User online: ${userId}`);
+    console.log(` User online: ${userId}`);
     socket.emit('system', { message: 'Connected to chat server' });
     broadcastOnlineUsers();
   });
 
-  socket.on('chatMessage', ({ from, to, message, timestamp }) => {
-    if (!from || !message) return;
+  // Handle chat messages (text + optional files)
+  socket.on('chatMessage', async ({ from, to, message, files = [], timestamp }) => {
+    if (!from || (!message && files.length === 0)) return;
 
-    const payload = { from, to, text: message, timestamp: timestamp || new Date() };
+    const payload = { from, to, message, files, timestamp: timestamp || new Date() };
 
-    // Broadcast to sender
+    // Emit to sender
     socket.emit('receive-message', payload);
-    console.log(`💬 ${from}: ${message}`);
+
+    // Emit to recipient if online
+    const recipientSocket = onlineUsers.get(String(to));
+    if (recipientSocket) recipientSocket.emit('receive-message', payload);
+
+    // Save message to DB
+    try {
+      await Message.createMessage({
+        fromUserId: from,
+        toUserId: to,
+        messages: message || '',
+        files,
+        timestamp: timestamp || new Date(),
+      });
+    } catch (err) {
+      console.error(' Error saving chat message:', err);
+    }
+
+    console.log(`💬 ${from} -> ${to}: ${message || '[file(s) attached]'}`);
   });
 
+  // Handle disconnect
   socket.on('disconnect', () => {
     if (socket.userId) {
       onlineUsers.delete(String(socket.userId));
-      console.log(`❌ User offline: ${socket.userId}`);
+      console.log(` User offline: ${socket.userId}`);
       broadcastOnlineUsers();
     }
   });
 });
 
-server.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
+// ---------------- START SERVER ----------------
+server.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
 
-process.on('uncaughtException', (err) => console.error('💥 Uncaught Exception:', err));
-process.on('unhandledRejection', (reason) => console.error('💥 Unhandled Rejection:', reason));
+// ---------------- ERROR HANDLING ----------------
+process.on('uncaughtException', (err) => console.error(' Uncaught Exception:', err));
+process.on('unhandledRejection', (reason) => console.error(' Unhandled Rejection:', reason));
 
 const shutdown = () => {
-  console.log('🛑 Shutting down...');
+  console.log(' Shutting down...');
   io.sockets.sockets.forEach((s) => s.disconnect(true));
   server.close(() => process.exit(0));
 };

@@ -14,28 +14,27 @@
 // const upload = multer({ storage });
 // module.exports = upload;
 
-
-const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('cloudinary').v2;
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// Configure Multer Cloudinary storage
 const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'chat_attachments', // Cloudinary folder
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'docx', 'txt'],
+  cloudinary,
+  params: (req, file) => {
+    const ext = file.originalname.split('.').pop().toLowerCase();
+
+    const rawFormats = ['doc', 'docx', 'xls', 'xlsx', 'txt'];
+    const videoFormats = ['mp4', 'mov', 'avi'];
+    const imageFormats = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
+
+    let resourceType = 'auto'; // default
+    if (rawFormats.includes(ext)) resourceType = 'raw';
+    else if (videoFormats.includes(ext)) resourceType = 'video';
+    else if (imageFormats.includes(ext)) resourceType = 'image';
+
+    return {
+      folder: 'chat_uploads',
+      resource_type: resourceType,
+      public_id: `${Date.now()}-${file.originalname.split('.')[0]}`,
+      transformation: resourceType === 'image' ? [{ quality: 'auto', fetch_format: 'auto' }] : [],
+    };
   },
 });
 
-// Export multer instance
 const upload = multer({ storage });
-
-module.exports = upload;
