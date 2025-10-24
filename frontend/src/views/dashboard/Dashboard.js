@@ -3,10 +3,29 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import io from 'socket.io-client'
 import {
-  CAvatar, CButton, CCard, CCardBody, CCardHeader, CCardFooter,
-  CFormInput, CFormSelect, CTable, CTableBody, CTableDataCell,
-  CTableHead, CTableHeaderCell, CTableRow, CPagination, CPaginationItem,
-  CBadge, CSpinner, CModal, CModalHeader, CModalBody, CModalTitle, CModalFooter
+  CAvatar,
+  CButton,
+  CCard,
+  CCardBody,
+  CCardHeader,
+  CCardFooter,
+  CFormInput,
+  CFormSelect,
+  CTable,
+  CTableBody,
+  CTableDataCell,
+  CTableHead,
+  CTableHeaderCell,
+  CTableRow,
+  CPagination,
+  CPaginationItem,
+  CBadge,
+  CSpinner,
+  CModal,
+  CModalHeader,
+  CModalBody,
+  CModalTitle,
+  CModalFooter,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilPencil, cilTrash, cilChatBubble, cilSend, cilCloudDownload } from '@coreui/icons'
@@ -17,6 +36,9 @@ import { TextField } from '@mui/material'
 import StateDropdown from '../pages/profile/stateDropdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import vampireAvatar from '../../assets/images/vampire-avatar.jpg';
+
+
 
 const socket = io('http://localhost:3002', { transports: ['websocket'] })
 
@@ -76,50 +98,54 @@ const Dashboard = () => {
   }, [apiBase, headers])
 
   useEffect(() => {
-    if (!token) { navigate('/login'); return }
+    if (!token) {
+      navigate('/login')
+      return
+    }
     fetchCurrentUser()
     fetchUsers()
   }, [token])
 
   // ---------------- AI CHAT SETUP ----------------
   useEffect(() => {
-    socket.on('privateMessage', (msg) => setAiMessages(prev => [...prev, msg]))
+    socket.on('privateMessage', (msg) => setAiMessages((prev) => [...prev, msg]))
     return () => socket.off('privateMessage')
   }, [])
 
-  useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [aiMessages])
+  useEffect(() => {
+    aiEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [aiMessages])
 
- const sendAiMessage = async () => {
-  if (!aiInput.trim()) return
+  const sendAiMessage = async () => {
+    if (!aiInput.trim()) return
 
-  const userMsg = { role: 'user', text: aiInput }
-  setAiMessages((prev) => [...prev, userMsg])
-  setAiInput('')
-  setAiLoading(true)
+    const userMsg = { role: 'user', text: aiInput }
+    setAiMessages((prev) => [...prev, userMsg])
+    setAiInput('')
+    setAiLoading(true)
 
-  try {
-    // Make POST request to your AI backend
-    const res = await fetch(`${apiBase.replace('/api','')}/api/gemini`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userMsg.text }),
-    })
-    const data = await res.json()
+    try {
+      // Make POST request to your AI backend
+      const res = await fetch(`${apiBase.replace('/api', '')}/api/gemini`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg.text }),
+      })
+      const data = await res.json()
 
-    // Push AI response
-    const botReply = data.reply || 'Sorry, I could not understand that.'
-    setAiMessages((prev) => [...prev, { role: 'bot', text: botReply }])
-  } catch (err) {
-    console.error(err)
-    setAiMessages((prev) => [
-      ...prev,
-      { role: 'bot', text: 'AI service is currently unavailable.' },
-    ])
-  } finally {
-    setAiLoading(false)
+      // Push AI response
+      const botReply = data.reply || 'Sorry, I could not understand that.'
+      setAiMessages((prev) => [...prev, { role: 'bot', text: botReply }])
+    } catch (err) {
+      console.error(err)
+      setAiMessages((prev) => [
+        ...prev,
+        { role: 'bot', text: 'AI service is currently unavailable.' },
+      ])
+    } finally {
+      setAiLoading(false)
+    }
   }
-}
-
 
   // ---------------- USER CRUD ----------------
   const handleEdit = (user) => {
@@ -131,14 +157,14 @@ const Dashboard = () => {
       state: user.state_name ? { state_name: user.state_name } : null,
       city: user.city || '',
       photo: null,
-      photoPreview: user.photo ? `${baseUploadUrl}${user.photo}` : null
+      photoPreview: user.photo ? `${baseUploadUrl}${user.photo}` : null,
     })
     setEditModal(true)
   }
 
   const handleEditFile = (e) => {
     const file = e.target.files?.[0]
-    if (file) setFormData(p => ({ ...p, photo: file, photoPreview: URL.createObjectURL(file) }))
+    if (file) setFormData((p) => ({ ...p, photo: file, photoPreview: URL.createObjectURL(file) }))
   }
 
   const updateUser = async () => {
@@ -154,20 +180,33 @@ const Dashboard = () => {
       if (formData.photo) fd.append('photo', formData.photo)
 
       const res = await fetch(`${apiBase}/users/${selectedUser.id}`, {
-        method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: fd
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
       })
       const json = await res.json()
       if (json.status !== 'success') throw new Error(json.message || 'Update failed')
       setEditModal(false)
       fetchUsers()
-    } catch (err) { console.error(err) }
-    finally { setActionLoading(false) }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
-  const handleDelete = (user) => { setSelectedUser(user); setDeleteModal(true) }
+  const handleDelete = (user) => {
+    setSelectedUser(user)
+    setDeleteModal(true)
+  }
   const confirmDelete = async () => {
-    try { await fetch(`${apiBase}/users/${selectedUser.id}`, { method: 'DELETE', headers }); setDeleteModal(false); fetchUsers() }
-    catch (err) { console.error(err) }
+    try {
+      await fetch(`${apiBase}/users/${selectedUser.id}`, { method: 'DELETE', headers })
+      setDeleteModal(false)
+      fetchUsers()
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   // ---------------- PAGINATION ----------------
@@ -176,7 +215,12 @@ const Dashboard = () => {
   const currentUsers = users.slice(indexOfFirst, indexOfLast)
   const totalPages = Math.ceil(users.length / itemsPerPage)
 
-  if (loading) return <div className="text-center p-5"><CSpinner /> Loading...</div>
+  if (loading)
+    return (
+      <div className="text-center p-5">
+        <CSpinner /> Loading...
+      </div>
+    )
   if (error) return <div className="text-center p-5 text-danger">{error}</div>
 
   return (
@@ -184,16 +228,34 @@ const Dashboard = () => {
       <WidgetsDropdown className="mb-4" />
       <CCard className="mb-4 shadow-sm">
         <CCardHeader className="d-flex justify-content-between align-items-center">
-          <div><h4>Welcome, {userData?.fullName || 'User'}</h4><small className="text-muted">Your Dashboard Overview</small></div>
-          <CButton color="danger" variant="outline" onClick={() => { localStorage.removeItem('token'); navigate('/login') }}><CIcon icon={cilCloudDownload} className="me-2" /> Logout</CButton>
+          <div>
+            <h4>Welcome, {userData?.fullName || 'User'}</h4>
+            <small className="text-muted">Your Dashboard Overview</small>
+          </div>
+          <CButton
+            color="danger"
+            variant="outline"
+            onClick={() => {
+              localStorage.removeItem('token')
+              navigate('/login')
+            }}
+          >
+            <CIcon icon={cilCloudDownload} className="me-2" /> Logout
+          </CButton>
         </CCardHeader>
-        <CCardBody><MainChart /></CCardBody>
-        <CCardFooter><WidgetsBrand withCharts /></CCardFooter>
+        <CCardBody>
+          <MainChart />
+        </CCardBody>
+        <CCardFooter>
+          <WidgetsBrand withCharts />
+        </CCardFooter>
       </CCard>
 
       {/* ---------------- USER TABLE ---------------- */}
       <CCard className="mb-4 shadow-sm">
-        <CCardHeader><h5>📋 Registered Users</h5></CCardHeader>
+        <CCardHeader>
+          <h5>📋 Registered Users</h5>
+        </CCardHeader>
         <CCardBody>
           <CTable hover responsive bordered>
             <CTableHead color="light">
@@ -210,23 +272,40 @@ const Dashboard = () => {
             <CTableBody>
               {currentUsers.map((user, idx) => (
                 <CTableRow key={idx}>
-                  <CTableDataCell><CAvatar src={user.photo ? `${baseUploadUrl}${user.photo}` : 'https://cdn-icons-png.flaticon.com/512/149/149071.png'} size="md"           
-                  style={{
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      overflow: "hidden",
-                      marginRight: "10px",
-                    }}/></CTableDataCell>
+                  <CTableDataCell>
+                    <CAvatar
+                      src={
+                        user.photo
+                          ? `${baseUploadUrl}${user.photo}`
+                          : 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
+                      }
+                      size="md"
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        overflow: 'hidden',
+                        marginRight: '10px',
+                      }}
+                    />
+                  </CTableDataCell>
                   <CTableDataCell>{user.fullName}</CTableDataCell>
                   <CTableDataCell>{user.email}</CTableDataCell>
-                  <CTableDataCell><CBadge color={user.gender === 'Male' ? 'info' : 'danger'}>{user.gender}</CBadge></CTableDataCell>
+                  <CTableDataCell>
+                    <CBadge color={user.gender === 'Male' ? 'info' : 'danger'}>
+                      {user.gender}
+                    </CBadge>
+                  </CTableDataCell>
                   <CTableDataCell>{user.state_name}</CTableDataCell>
                   <CTableDataCell>{user.city}</CTableDataCell>
                   <CTableDataCell>
-                    <CButton size="sm" className="me-2" onClick={() => handleEdit(user)}><CIcon icon={cilPencil} /></CButton>
-                    <CButton size="sm" color="danger" onClick={() => handleDelete(user)}><CIcon icon={cilTrash} /></CButton>
+                    <CButton size="sm" className="me-2" onClick={() => handleEdit(user)}>
+                      <CIcon icon={cilPencil} />
+                    </CButton>
+                    <CButton size="sm" color="danger" onClick={() => handleDelete(user)}>
+                      <CIcon icon={cilTrash} />
+                    </CButton>
                   </CTableDataCell>
                 </CTableRow>
               ))}
@@ -235,7 +314,15 @@ const Dashboard = () => {
 
           <div className="d-flex justify-content-center mt-3">
             <CPagination>
-              {[...Array(totalPages)].map((_, idx) => <CPaginationItem key={idx} active={currentPage === idx + 1} onClick={() => setCurrentPage(idx + 1)}>{idx + 1}</CPaginationItem>)}
+              {[...Array(totalPages)].map((_, idx) => (
+                <CPaginationItem
+                  key={idx}
+                  active={currentPage === idx + 1}
+                  onClick={() => setCurrentPage(idx + 1)}
+                >
+                  {idx + 1}
+                </CPaginationItem>
+              ))}
             </CPagination>
           </div>
         </CCardBody>
@@ -243,64 +330,243 @@ const Dashboard = () => {
 
       {/* ---------------- EDIT MODAL ---------------- */}
       <CModal visible={editModal} onClose={() => setEditModal(false)}>
-        <CModalHeader><CModalTitle>Edit User</CModalTitle></CModalHeader>
+        <CModalHeader>
+          <CModalTitle>Edit User</CModalTitle>
+        </CModalHeader>
         <CModalBody>
-          <CFormInput className="mb-2" label="Full Name" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} />
-          <CFormInput className="mb-2" label="Email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
-          <CFormSelect className="mb-2" label="Gender" value={formData.gender} onChange={e => setFormData(p => ({ ...p, gender: e.target.value }))}>
+          <CFormInput
+            className="mb-2"
+            label="Full Name"
+            value={formData.fullName}
+            onChange={(e) => setFormData((p) => ({ ...p, fullName: e.target.value }))}
+          />
+          <CFormInput
+            className="mb-2"
+            label="Email"
+            value={formData.email}
+            onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+          />
+          <CFormSelect
+            className="mb-2"
+            label="Gender"
+            value={formData.gender}
+            onChange={(e) => setFormData((p) => ({ ...p, gender: e.target.value }))}
+          >
             <option value="">Select Gender</option>
             <option value="Male">Male</option>
             <option value="Female">Female</option>
           </CFormSelect>
           <div className="mb-2">
             <label className="form-label">State</label>
-            <StateDropdown value={formData.state?.state_name || ''} onSelect={state => setFormData(p => ({ ...p, state }))} />
+            <StateDropdown
+              value={formData.state?.state_name || ''}
+              onSelect={(state) => setFormData((p) => ({ ...p, state }))}
+            />
           </div>
-          <TextField fullWidth variant="outlined" label="City" value={formData.city || ''} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))} className="mb-2" />
-          <CFormInput type="file" accept="image/*" className="mb-2" label="Change Profile Picture" onChange={handleEditFile} />
+          <TextField
+            fullWidth
+            variant="outlined"
+            label="City"
+            value={formData.city || ''}
+            onChange={(e) => setFormData((p) => ({ ...p, city: e.target.value }))}
+            className="mb-2"
+          />
+          <CFormInput
+            type="file"
+            accept="image/*"
+            className="mb-2"
+            label="Change Profile Picture"
+            onChange={handleEditFile}
+          />
         </CModalBody>
         <CModalFooter>
-          <CButton color="secondary" onClick={() => setEditModal(false)} disabled={actionLoading}>Cancel</CButton>
-          <CButton color="primary" onClick={updateUser} disabled={actionLoading}>{actionLoading ? <CSpinner size="sm" /> : 'Save Changes'}</CButton>
+          <CButton color="secondary" onClick={() => setEditModal(false)} disabled={actionLoading}>
+            Cancel
+          </CButton>
+          <CButton color="primary" onClick={updateUser} disabled={actionLoading}>
+            {actionLoading ? <CSpinner size="sm" /> : 'Save Changes'}
+          </CButton>
         </CModalFooter>
       </CModal>
 
       {/* ---------------- DELETE MODAL ---------------- */}
       <CModal visible={deleteModal} onClose={() => setDeleteModal(false)}>
-        <CModalHeader><CModalTitle>Confirm Delete</CModalTitle></CModalHeader>
-        <CModalBody>Are you sure you want to delete <strong>{selectedUser?.fullName}</strong>?</CModalBody>
+        <CModalHeader>
+          <CModalTitle>Confirm Delete</CModalTitle>
+        </CModalHeader>
+        <CModalBody>
+          Are you sure you want to delete <strong>{selectedUser?.fullName}</strong>?
+        </CModalBody>
         <CModalFooter>
-          <CButton color="secondary" onClick={() => setDeleteModal(false)}>Cancel</CButton>
-          <CButton color="danger" onClick={confirmDelete}>Delete</CButton>
+          <CButton color="secondary" onClick={() => setDeleteModal(false)}>
+            Cancel
+          </CButton>
+          <CButton color="danger" onClick={confirmDelete}>
+            Delete
+          </CButton>
         </CModalFooter>
       </CModal>
 
       {/* ---------------- AI FLOATING WIDGET ---------------- */}
-      <div style={{ position: 'fixed', bottom: '50px', right: '50px', zIndex: 1880 }}>
-        <CButton color="info" shape="rounded-circle" style={{ width: '60px', height: '60px', animation: 'bounce 2s infinite' }} onClick={() => setAiVisible(!aiVisible)}>
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '50px',
+          right: '50px',
+          zIndex: 1880,
+        }}
+      >
+        <CButton
+          color="dark"
+          shape="rounded-circle"
+          style={{
+            width: '60px',
+            height: '60px',
+            backgroundColor: '#4B0000',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            animation: 'bounce 2s infinite',
+          }}
+          onClick={() => setAiVisible(!aiVisible)}
+        >
           <CIcon icon={cilChatBubble} size="lg" />
         </CButton>
       </div>
 
       {aiVisible && (
-        <div style={{ position: 'fixed', bottom: '120px', right: '20px', width: '400px', height: '600px', backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', zIndex: 1050 }}>
-          <div style={{ backgroundColor: '#053253ff', color: '#fff', padding: '10px', borderTopLeftRadius: '10px', borderTopRightRadius: '10px', textAlign: 'center' }}>
-            <h4>🤖 AI Assistant</h4>
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '120px',
+            right: '20px',
+            width: '420px',
+            height: '620px',
+            backgroundColor: '#1E1E2F',
+            borderRadius: '15px',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 2000,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              background: 'linear-gradient(90deg, #4B0000, #730000)',
+              color: '#fff',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }}
+          >
+            <img
+              src={vampireAvatar}
+              alt="A dark Vampire"
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                border: '2px solid #fff',
+              }}
+            />
+            <div>
+              <h4 style={{ margin: 0, fontSize: '1rem' }}>🧛‍♂️ Dark Vampire</h4>
+              <small style={{ color: '#ccc' }}>Your dark-side assistant</small>
+            </div>
           </div>
-          <div style={{ flex: 1, padding: '10px', overflowY: 'auto', backgroundColor: '#f9fafb' }}>
+
+          {/* Messages */}
+          <div
+            style={{
+              flex: 1,
+              padding: '12px',
+              overflowY: 'auto',
+              backgroundColor: '#262637',
+            }}
+          >
             {aiMessages.map((msg, idx) => (
-              <div key={idx} className={`mb-2 d-flex ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
-                <div className={`p-2 rounded-3 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-light border'}`} style={{ maxWidth: '80%', whiteSpace: 'pre-wrap' }}>
-                  {msg.role === 'bot' ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown> : msg.text}
+              <div
+                key={idx}
+                className={`mb-2 d-flex ${
+                  msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'
+                }`}
+              >
+                {msg.role === 'bot' && (
+                  <img
+                    src="/vampire-avatar.png"
+                    alt="Bot"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      marginRight: '8px',
+                      alignSelf: 'flex-end',
+                    }}
+                  />
+                )}
+                <div
+                  className={`p-2 rounded-3 ${
+                    msg.role === 'user' ? 'bg-primary text-white' : 'bg-light text-dark'
+                  }`}
+                  style={{
+                    maxWidth: '75%',
+                    whiteSpace: 'pre-wrap',
+                    backgroundColor: msg.role === 'user' ? '#0056b3' : '#f1f1f1',
+                  }}
+                >
+                  {msg.role === 'bot' ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                  ) : (
+                    msg.text
+                  )}
                 </div>
               </div>
             ))}
-            {aiLoading && <div className="text-muted fst-italic px-3">AI is typing...</div>}
+            {aiLoading && (
+              <div className="text-muted fst-italic px-3" style={{ color: '#aaa' }}>
+                 Dark Vampire is thinking...
+              </div>
+            )}
             <div ref={aiEndRef} />
           </div>
-          <div style={{ borderTop: '1px solid #d9b9b9', padding: '8px', display: 'flex', alignItems: 'center' }}>
-            <CFormInput placeholder="Ask AI..." value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendAiMessage()} disabled={aiLoading} />
-            <CButton color="info" className="ms-2" onClick={sendAiMessage} disabled={aiLoading}><CIcon icon={cilSend} /></CButton>
+
+          {/* Input Section */}
+          <div
+            style={{
+              borderTop: '1px solid #3A3A4D',
+              padding: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: '#1E1E2F',
+            }}
+          >
+            <CFormInput
+              placeholder="Speak to the darkness..."
+              value={aiInput}
+              onChange={(e) => setAiInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendAiMessage()}
+              disabled={aiLoading}
+              style={{
+                backgroundColor: '#2C2C3F',
+                color: '#fff',
+                border: 'none',
+              }}
+            />
+            <CButton
+              color="dark"
+              className="ms-2"
+              onClick={sendAiMessage}
+              disabled={aiLoading}
+              style={{
+                backgroundColor: '#4B0000',
+                border: 'none',
+                color: '#fff',
+              }}
+            >
+              <CIcon icon={cilSend} />
+            </CButton>
           </div>
         </div>
       )}
